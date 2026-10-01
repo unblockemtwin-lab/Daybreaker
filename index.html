@@ -1,0 +1,1962 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Weather with a live sky, calorie, step and water tracking, reminders, and a 2-hour Game Mode alarm.">
+<meta name="theme-color" content="#060B1A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Daybreak">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="favicon-64.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Daybreak</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@200;300;500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  /* Layout: a live landscape (real sun, moon and NWS sky) fixed behind a phone-first column. The horizon sits under each header, so cards rest on the ground. Three tabs on phones, three columns on wide screens. */
+  --night:#060B1A;
+  --ink:#F5F7FC;
+  --ink-2:rgba(245,247,252,.76);
+  --ink-3:rgba(245,247,252,.52);
+  --ink-4:rgba(245,247,252,.26);
+  --glass:rgba(14,21,42,.52);
+  --glass-2:rgba(12,18,36,.86);
+  --line:rgba(255,255,255,.09);
+  --line-2:rgba(255,255,255,.17);
+  --sun:#FFB547;
+  --on-sun:#1D1205;
+  --fuel:#A6E36B;
+  --move:#FF6E9C;
+  --water:#58D2FF;
+  --alarm:#FF4757;
+  --f-display:"Big Shoulders Display","Big Shoulders","Arial Narrow","Roboto Condensed",sans-serif;
+  --f-body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-data:"DM Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  --spring:cubic-bezier(.3,1.35,.5,1);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--night);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;overflow-x:hidden}
+h1,h2,h3{margin:0;text-wrap:balance}
+p{margin:0}
+button{font-family:inherit}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.defs{position:absolute;width:0;height:0;overflow:hidden}
+#scene{position:fixed;inset:0;width:100%;height:100%;z-index:0;display:block;pointer-events:none}
+.grain{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.09;mix-blend-mode:overlay;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+.app{position:relative;z-index:1;max-width:520px;margin:0 auto;padding-inline:16px;padding-block:18px 132px}
+.pane{display:none;flex-direction:column;gap:14px;min-width:0}
+.pane.is-active{display:flex}
+.horizon{height:112px;flex:none}
+.horizon.sm{height:78px}
+
+/* ---------- shared ---------- */
+.card{position:relative;min-width:0;padding:18px;border-radius:26px;background:linear-gradient(180deg,rgba(255,255,255,.075),rgba(255,255,255,.015) 45%),var(--glass);border:1px solid var(--line);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 26px 50px -26px rgba(0,0,0,.7);-webkit-backdrop-filter:blur(26px) saturate(160%);backdrop-filter:blur(26px) saturate(160%)}
+.c-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.c-title{display:flex;align-items:center;gap:9px;font-family:var(--f-display);font-weight:800;font-size:21px;letter-spacing:.05em;text-transform:uppercase;line-height:1}
+.c-title svg{width:20px;height:20px;flex:none}
+.c-meta{font-family:var(--f-data);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);text-align:right}
+.eyebrow{font-family:var(--f-data);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+.note{font-size:13px;color:var(--ink-2)}
+.empty{font-size:13.5px;color:var(--ink-3);text-align:center;padding:14px 0 4px}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;padding:0 18px;border-radius:999px;border:1px solid var(--line-2);background:rgba(255,255,255,.08);color:var(--ink);font-weight:600;font-size:14.5px;cursor:pointer;transition:transform .2s var(--spring),background .2s,box-shadow .2s;white-space:nowrap}
+.btn:hover{background:rgba(255,255,255,.14)}
+.btn:active{transform:scale(.95)}
+.btn svg{width:18px;height:18px}
+.btn-primary{background:linear-gradient(135deg,#FFD06B,#FF7A59);color:var(--on-sun);border-color:transparent;font-weight:700;box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 12px 26px -12px rgba(255,122,89,.9)}
+.btn-primary:hover{background:linear-gradient(135deg,#FFD87F,#FF876A)}
+.btn-water{background:linear-gradient(135deg,#86E8FF,#2F8CF0);color:#03121F;border-color:transparent;font-weight:700;box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 12px 26px -12px rgba(47,140,240,.9)}
+.btn-water:hover{background:linear-gradient(135deg,#9BEEFF,#4699F2)}
+.btn-quiet{background:transparent}
+.btn-danger{border-color:rgba(255,71,87,.6);background:rgba(255,71,87,.16)}
+.btn-danger:hover{background:rgba(255,71,87,.26)}
+.btn-lg{min-height:58px;font-size:17px;padding:0 26px}
+.btn-icon{width:44px;padding:0;flex:none;font-size:20px}
+.btn-row{display:flex;flex-wrap:wrap;gap:8px}
+.btn-row.quad{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+.btn-row.quad .btn{padding:0 6px}
+:is(.btn,.field,.tab,.chip,.x,.seg button,summary,.dot-btn,.hold,.icon-btn,.glass,.stp button):focus-visible{outline:2px solid var(--sun);outline-offset:3px}
+
+.field{width:100%;min-width:0;min-height:46px;padding:10px 14px;border-radius:14px;border:1px solid var(--line-2);background:rgba(0,0,0,.28);color:var(--ink);font-family:var(--f-body);font-size:16px}
+.field::placeholder{color:var(--ink-3)}
+select.field{appearance:none;-webkit-appearance:none;padding-right:34px;background-image:linear-gradient(45deg,transparent 50%,var(--ink-2) 50%),linear-gradient(135deg,var(--ink-2) 50%,transparent 50%);background-position:calc(100% - 18px) 52%,calc(100% - 13px) 52%;background-size:5px 5px;background-repeat:no-repeat}
+select.field option{background:#0C1328;color:var(--ink)}
+.err{font-size:13px;background:rgba(255,71,87,.18);border:1px solid rgba(255,71,87,.45);border-radius:12px;padding:7px 11px}
+
+.seg{display:flex;gap:4px;padding:4px;border-radius:15px;background:rgba(0,0,0,.28);border:1px solid var(--line)}
+.seg button{flex:1;min-height:36px;padding:0 6px;border-radius:11px;border:0;background:none;color:var(--ink-2);font-weight:600;font-size:13px;cursor:pointer;transition:background .2s,color .2s}
+.seg button[aria-checked="true"]{background:rgba(255,255,255,.15);color:var(--ink);box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
+
+.switch{position:relative;width:50px;height:30px;flex:none;cursor:pointer}
+.switch input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer;z-index:1}
+.switch .track{position:absolute;inset:0;border-radius:99px;background:rgba(255,255,255,.16);transition:background .25s}
+.switch .track::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.35);transition:transform .3s var(--spring)}
+.switch input:checked+.track{background:var(--fuel)}
+.switch input:checked+.track::after{transform:translateX(20px)}
+.switch input:focus-visible+.track{outline:2px solid var(--sun);outline-offset:3px}
+
+/* ---------- motion ---------- */
+@media (prefers-reduced-motion:no-preference){
+  .pane>*{animation:rise .7s var(--ease) both}
+  .pane>:nth-child(2){animation-delay:40ms}.pane>:nth-child(3){animation-delay:90ms}.pane>:nth-child(4){animation-delay:140ms}
+  .pane>:nth-child(5){animation-delay:190ms}.pane>:nth-child(6){animation-delay:240ms}.pane>:nth-child(7){animation-delay:290ms}.pane>:nth-child(8){animation-delay:330ms}
+  .hero>*{animation:rise .8s var(--ease) both}
+  .hero>:nth-child(2){animation-delay:60ms}.hero>:nth-child(3){animation-delay:120ms}.hero>:nth-child(4){animation-delay:200ms}.hero>:nth-child(5){animation-delay:260ms}.hero>:nth-child(6){animation-delay:320ms}
+}
+@keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+
+/* ---------- weather ---------- */
+.hero{display:grid;text-shadow:0 2px 30px rgba(3,6,16,.45)}
+.hero-top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.loc{display:flex;align-items:center;gap:7px;font-weight:700;font-size:16px;letter-spacing:.01em}
+.loc svg{width:15px;height:15px;flex:none}
+.src{font-family:var(--f-data);font-size:10.5px;letter-spacing:.05em;color:var(--ink-2);padding:6px 10px;border-radius:99px;background:rgba(3,6,16,.3);border:1px solid var(--line);text-shadow:none;white-space:nowrap;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.clock{font-family:var(--f-data);font-size:12px;color:var(--ink-2);margin-top:5px;letter-spacing:.02em}
+.temp{display:flex;align-items:flex-start;margin:20px 0 0 -7px;font-family:var(--f-display);font-weight:200;font-size:clamp(136px,41vw,196px);line-height:.8;letter-spacing:-.035em;font-variant-numeric:tabular-nums}
+.temp .deg{font-size:.42em;font-weight:300;margin:.05em 0 0 .02em}
+.temp small{align-self:flex-end;margin:0 0 .45em .5em;font-family:var(--f-data);font-size:.11em;font-weight:400;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2)}
+.cond{margin-top:14px;font-family:var(--f-display);font-weight:600;font-size:36px;line-height:1;letter-spacing:.01em}
+.hl{margin-top:8px;font-family:var(--f-data);font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:pre-wrap}
+.hero-line{display:flex;align-items:center;gap:9px;margin-top:16px;font-size:14.5px;font-weight:500}
+.hero-line .pip{width:7px;height:7px;border-radius:50%;background:var(--sun);box-shadow:0 0 12px 2px rgba(255,181,71,.7);flex:none}
+
+.brief-row{display:grid;grid-template-columns:42px minmax(0,1fr);gap:13px;align-items:center;padding:12px 0}
+.brief-row+.brief-row{border-top:1px solid var(--line)}
+.brief-row:first-child{padding-top:2px}
+.brief-row:last-child{padding-bottom:0}
+.b-ico{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:rgba(255,255,255,.06);border:1px solid var(--line)}
+.b-ico svg{width:30px;height:30px}
+.b-t{font-weight:700;font-size:15px;line-height:1.25}
+.b-s{font-size:13.5px;color:var(--ink-2);margin-top:2px}
+
+.scroll{overflow-x:auto;margin-inline:-18px;padding-inline:18px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.scroll::-webkit-scrollbar{display:none}
+.scroll svg{display:block}
+.s-time{font-family:var(--f-data);font-size:11px;fill:var(--ink-2)}
+.s-now{font-family:var(--f-data);font-size:11px;font-weight:500;fill:var(--on-sun)}
+.s-temp{font-family:var(--f-display);font-weight:700;font-size:18px;fill:var(--ink)}
+.s-pop{font-family:var(--f-data);font-size:10px;fill:var(--water)}
+.s-ev{font-family:var(--f-data);font-size:9.5px;fill:var(--sun)}
+
+details.day{border-top:1px solid var(--line)}
+details.day:first-child{border-top:0}
+details.day summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:58px 32px 38px 30px minmax(0,1fr) 30px;align-items:center;gap:8px;padding:10px 4px;border-radius:12px;transition:background .2s}
+details.day summary::-webkit-details-marker{display:none}
+details.day summary:hover{background:rgba(255,255,255,.04)}
+.d-name{font-family:var(--f-display);font-weight:700;font-size:19px;letter-spacing:.04em;text-transform:uppercase}
+.d-pop{font-family:var(--f-data);font-size:11.5px;color:var(--water);text-align:center}
+.d-lo,.d-hi{font-family:var(--f-data);font-size:14px;font-variant-numeric:tabular-nums}
+.d-lo{color:var(--ink-3);text-align:right}
+.bar{position:relative;height:6px;border-radius:6px;background:rgba(255,255,255,.1)}
+.bar i{position:absolute;top:0;bottom:0;border-radius:6px}
+.bar b{position:absolute;top:50%;width:11px;height:11px;margin:-5.5px 0 0 -5.5px;border-radius:50%;background:#fff;border:2.5px solid #0B1226;box-shadow:0 0 10px rgba(255,255,255,.6)}
+details.day .d-more{padding:2px 6px 14px;font-size:13.5px;color:var(--ink-2)}
+details.day[open] summary{background:rgba(255,255,255,.05)}
+@media (prefers-reduced-motion:no-preference){details.day[open] .d-more{animation:rise .35s var(--ease) both}}
+
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.tile{display:flex;flex-direction:column;gap:6px;padding:16px;min-height:176px}
+.tile.wide{grid-column:1/-1;min-height:0}
+.t-label{display:flex;align-items:center;gap:6px;font-family:var(--f-data);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3)}
+.t-label svg{width:13px;height:13px}
+.t-val{font-family:var(--f-display);font-weight:500;font-size:42px;line-height:.95;font-variant-numeric:tabular-nums}
+.t-val small{font-family:var(--f-data);font-weight:400;font-size:13px;color:var(--ink-2);margin-left:3px;letter-spacing:0}
+.t-word{font-weight:700;font-size:14px}
+.t-sub{font-size:12.5px;color:var(--ink-2);margin-top:auto}
+.scale{position:relative;height:6px;border-radius:6px;margin:8px 2px 2px}
+.scale i{position:absolute;top:50%;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;border-radius:50%;background:#fff;border:3px solid #0B1226;box-shadow:0 0 0 1px rgba(255,255,255,.35)}
+.scale-l{display:flex;justify-content:space-between;font-family:var(--f-data);font-size:9.5px;color:var(--ink-3);margin-top:3px}
+.wind-row{display:grid;grid-template-columns:minmax(0,1fr) 66px;gap:6px;align-items:center}
+.sunmoon{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:end}
+.sunarc{width:100%;height:auto;display:block}
+.moonbox{display:grid;justify-items:center;gap:3px;text-align:center;padding-bottom:18px;min-width:86px}
+.moonbox svg{width:52px;height:52px;margin-bottom:3px}
+.moonbox b{font-size:12.5px;font-weight:700;line-height:1.2}
+.moonbox span{font-family:var(--f-data);font-size:10.5px;color:var(--ink-3)}
+.rainbars{display:flex;align-items:flex-end;gap:3px;height:46px;margin-top:6px}
+.rainbars i{flex:1;border-radius:3px 3px 1px 1px;background:linear-gradient(180deg,#86E8FF,#2F8CF0);min-height:3px}
+.rainbars i.zero{background:rgba(255,255,255,.12)}
+.baro{width:100%;max-width:150px;height:auto;display:block;margin:2px auto 0}
+.foot{font-size:11.5px;color:var(--ink-3);text-align:center;padding:4px 10px 0}
+
+/* ---------- health ---------- */
+.phead{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;text-shadow:0 2px 24px rgba(3,6,16,.4)}
+.ptitle{font-family:var(--f-display);font-weight:800;font-size:50px;letter-spacing:.01em;text-transform:uppercase;line-height:.95;margin-top:4px}
+.sync{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:12.5px;color:var(--ink-2);text-shadow:none}
+.sync .led{width:7px;height:7px;border-radius:50%;background:var(--ink-3);flex:none}
+.sync.ok .led{background:var(--fuel);box-shadow:0 0 8px var(--fuel)}
+.sync.bad .led{background:var(--alarm)}
+.icon-btn{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;flex:none;border:1px solid var(--line-2);background:rgba(3,6,16,.35);color:var(--ink);cursor:pointer;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);transition:transform .2s var(--spring)}
+.icon-btn:active{transform:scale(.92)}
+.icon-btn svg{width:21px;height:21px}
+
+.today{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:16px;align-items:center}
+.rings-svg{width:100%;max-width:190px;height:auto;display:block;margin:0 auto}
+.ring-track{fill:none}
+.legend{display:grid;gap:12px}
+.lg{display:grid;gap:1px}
+.lg-k{display:flex;align-items:center;gap:7px;font-family:var(--f-data);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+.lg-k i{width:8px;height:8px;border-radius:50%}
+.lg-v{font-family:var(--f-display);font-weight:700;font-size:28px;line-height:1;font-variant-numeric:tabular-nums}
+.lg-v small{font-family:var(--f-data);font-weight:400;font-size:11.5px;color:var(--ink-3);margin-left:4px}
+.netline{grid-column:1/-1;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding-top:14px;border-top:1px solid var(--line);font-size:13px;color:var(--ink-2)}
+.netline b{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
+
+.kpi{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px}
+.kpi-n{font-family:var(--f-display);font-weight:800;font-size:58px;line-height:.9;font-variant-numeric:tabular-nums}
+.kpi-s{font-family:var(--f-data);font-size:12.5px;color:var(--ink-2)}
+.prog{height:8px;border-radius:8px;background:rgba(255,255,255,.08);overflow:hidden;margin:12px 0 4px}
+.prog i{display:block;height:100%;border-radius:8px;width:0;transition:width .9s var(--ease)}
+.mealbar{display:flex;height:8px;border-radius:8px;overflow:hidden;background:rgba(255,255,255,.08);gap:2px;margin:14px 0 8px}
+.mealbar i{height:100%}
+.meal-legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-family:var(--f-data);font-size:11px;color:var(--ink-3)}
+.meal-legend span{display:flex;align-items:center;gap:6px}
+.meal-legend i{width:8px;height:8px;border-radius:2px;background:var(--fuel)}
+.food-form{display:grid;gap:8px;margin-top:16px}
+.food-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.food-row .btn{padding:0 26px}
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 13px;border-radius:999px;border:1px solid rgba(166,227,107,.28);background:rgba(166,227,107,.08);color:var(--ink);font-size:13.5px;font-weight:500;cursor:pointer;transition:transform .2s var(--spring),background .2s}
+.chip:hover{background:rgba(166,227,107,.16)}
+.chip:active{transform:scale(.94)}
+.chip em{font-style:normal;font-family:var(--f-data);font-size:11px;color:var(--fuel)}
+.sub-h{margin:18px 0 8px}
+.food-list{display:grid;gap:14px;margin-top:16px}
+.meal-h{display:flex;justify-content:space-between;font-family:var(--f-data);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);padding-bottom:6px;border-bottom:1px solid var(--line)}
+.food-item{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:8px 0}
+.food-item+.food-item{border-top:1px dashed var(--line)}
+.fi-n{font-weight:600;overflow-wrap:anywhere}
+.fi-t{font-family:var(--f-data);font-size:10.5px;color:var(--ink-3)}
+.fi-k{font-family:var(--f-data);font-size:13px;font-variant-numeric:tabular-nums}
+.x{width:32px;height:32px;border-radius:50%;border:1px solid var(--line-2);background:transparent;color:var(--ink-2);font-size:17px;line-height:1;cursor:pointer;display:grid;place-items:center}
+.x:hover{background:rgba(255,71,87,.22);color:var(--ink)}
+
+.walk{display:flex;align-items:center;gap:10px;margin-top:14px;padding:10px 12px;border-radius:16px;background:rgba(255,181,71,.09);border:1px solid rgba(255,181,71,.25);font-size:13.5px}
+.walk svg{width:26px;height:26px;flex:none}
+.walk b{font-weight:700}
+.inline-form{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;margin-top:10px}
+.week{margin-top:16px}
+.week svg{width:100%;height:auto;display:block}
+.motion-on{border-color:var(--move);background:rgba(255,110,156,.18)}
+
+.water-grid{display:grid;grid-template-columns:118px minmax(0,1fr);gap:18px;align-items:center}
+.glass{width:100%;height:auto;display:block;cursor:pointer;border-radius:12px;filter:drop-shadow(0 14px 22px rgba(47,140,240,.25))}
+.wave{animation:wave 3.4s linear infinite}
+.wave.b{animation-duration:5.2s;animation-direction:reverse}
+@keyframes wave{from{transform:translateX(0)}to{transform:translateX(-120px)}}
+@media (prefers-reduced-motion:reduce){.wave{animation:none}}
+.w-n{font-family:var(--f-display);font-weight:800;font-size:58px;line-height:.9;font-variant-numeric:tabular-nums}
+.w-n small{font-size:.42em;font-weight:500;color:var(--ink-2);margin-left:4px}
+.w-s{font-family:var(--f-data);font-size:12px;color:var(--ink-2);margin:6px 0 12px}
+.dots{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px}
+.dot-btn{width:26px;height:26px;border-radius:50%;border:1.5px solid rgba(88,210,255,.45);background:transparent;cursor:pointer;padding:0;transition:transform .2s var(--spring),background .2s}
+.dot-btn.on{background:linear-gradient(135deg,#86E8FF,#2F8CF0);border-color:transparent}
+.dot-btn:active{transform:scale(.85)}
+
+.rem-row{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 0}
+.rem-row+.rem-row{border-top:1px solid var(--line)}
+.c-head+.rem-row{padding-top:2px}
+.r-ico{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;background:rgba(255,255,255,.06)}
+.r-ico svg{width:24px;height:24px}
+.r-t{font-weight:700}
+.r-s{font-size:12.5px;color:var(--ink-2)}
+
+/* ---------- game ---------- */
+.timer{display:grid;justify-items:center;gap:18px;text-align:center;padding-block:26px 22px;overflow:hidden}
+.timer::before{content:"";position:absolute;left:50%;top:38%;width:340px;height:340px;margin:-170px 0 0 -170px;border-radius:50%;background:radial-gradient(circle,rgba(255,150,80,.2),transparent 65%);pointer-events:none;opacity:.45;transition:opacity .6s}
+.timer.live::before{opacity:1}
+.g-ring{position:relative;width:min(280px,74vw);aspect-ratio:1;max-width:100%}
+.g-ring svg{width:100%;height:100%;display:block;overflow:visible}
+.g-c{position:absolute;inset:0;display:grid;place-content:center;gap:6px}
+.g-time{font-family:var(--f-display);font-weight:200;font-size:clamp(50px,15vw,64px);line-height:1;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.g-sub{font-family:var(--f-data);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2)}
+.g-actions{display:grid;gap:10px;width:100%;max-width:330px;position:relative}
+.g-copy{font-size:14px;color:var(--ink-2);max-width:34ch;margin-inline:auto}
+.chips-s{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;justify-content:center;gap:6px;position:relative}
+.chips-s li{font-size:12.5px;padding:6px 11px;border-radius:999px;border:1px solid var(--line-2);background:rgba(255,255,255,.05);color:var(--ink-2)}
+.chips-s li.good{border-color:rgba(166,227,107,.5);color:var(--ink)}
+.chips-s li.hot{border-color:rgba(255,181,71,.55);color:var(--ink)}
+@media (prefers-reduced-motion:no-preference){.timer.live .tip{animation:glow 1.6s ease-in-out infinite alternate}}
+@keyframes glow{from{opacity:.55}to{opacity:1}}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:6px}
+.stat{padding:12px;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid var(--line)}
+.stat b{display:block;font-family:var(--f-display);font-weight:700;font-size:26px;line-height:1;font-variant-numeric:tabular-nums}
+.stat span{font-family:var(--f-data);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+.sess{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line);font-size:14px}
+.tag{font-family:var(--f-data);font-size:10.5px;padding:3px 8px;border-radius:99px;border:1px solid var(--line-2);color:var(--ink-2);margin-left:8px}
+.sess .len{font-family:var(--f-data);font-variant-numeric:tabular-nums}
+.how p{font-size:14px;color:var(--ink-2);margin:4px 0 14px}
+
+/* ---------- tab bar ---------- */
+.tabbar{position:fixed;z-index:30;left:50%;transform:translateX(-50%);bottom:calc(12px + env(safe-area-inset-bottom,0px));width:min(400px,calc(100% - 32px));padding:6px;border-radius:30px;background:rgba(10,15,32,.66);border:1px solid var(--line-2);-webkit-backdrop-filter:blur(26px) saturate(170%);backdrop-filter:blur(26px) saturate(170%);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 20px 44px rgba(0,0,0,.5)}
+.tabs-in{position:relative;display:grid;grid-template-columns:repeat(3,1fr)}
+.tab-ind{position:absolute;top:0;bottom:0;left:0;width:33.3333%;border-radius:24px;background:rgba(255,255,255,.13);box-shadow:inset 0 1px 0 rgba(255,255,255,.12);transition:transform .5s var(--spring)}
+.tab{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px 7px;border:0;border-radius:24px;background:none;color:var(--ink-3);font-family:var(--f-data);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;font-variant-numeric:tabular-nums;transition:color .25s}
+.tab svg{width:24px;height:24px}
+.tab[aria-selected="true"]{color:var(--ink)}
+.tab.live{color:var(--sun)}
+.tab .live-dot{position:absolute;top:7px;right:calc(50% - 20px);width:7px;height:7px;border-radius:50%;background:var(--sun);box-shadow:0 0 8px var(--sun)}
+
+/* ---------- toast ---------- */
+.toast{position:fixed;z-index:35;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:14px;max-width:calc(100% - 32px);padding:8px 8px 8px 16px;border-radius:18px;background:var(--glass-2);border:1px solid var(--line-2);-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px);box-shadow:0 18px 40px rgba(0,0,0,.5);font-size:14px;font-weight:500;animation:toastIn .4s var(--spring)}
+.toast .btn{min-height:36px;padding:0 14px;color:var(--sun);border-color:transparent;background:rgba(255,181,71,.12)}
+@keyframes toastIn{from{opacity:0;transform:translate(-50%,16px) scale(.96)}to{opacity:1;transform:translate(-50%,0)}}
+
+/* ---------- banner ---------- */
+.banner{position:fixed;z-index:45;left:50%;top:calc(env(safe-area-inset-top,0px) + 10px);transform:translateX(-50%);width:min(460px,calc(100% - 20px));padding:14px;border-radius:24px;background:var(--glass-2);border:1px solid var(--line-2);-webkit-backdrop-filter:blur(30px) saturate(170%);backdrop-filter:blur(30px) saturate(170%);box-shadow:0 24px 60px rgba(0,0,0,.55);animation:dropIn .5s var(--spring);touch-action:pan-x}
+.bn-app{display:flex;align-items:center;gap:7px;font-family:var(--f-data);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+.bn-app .logo{width:20px;height:20px;border-radius:6px}
+.bn-app .when{margin-left:auto;letter-spacing:.04em}
+.bn-body{display:grid;grid-template-columns:44px minmax(0,1fr);gap:12px;align-items:center;margin:10px 0 12px}
+.bn-body svg{width:44px;height:44px}
+.bn-body h3{font-family:var(--f-display);font-weight:800;font-size:22px;letter-spacing:.03em;text-transform:uppercase;line-height:1}
+.bn-body p{font-size:14px;color:var(--ink-2);margin-top:4px}
+.bn-actions{display:flex;gap:8px;flex-wrap:wrap}
+.bn-actions .btn{flex:1;min-height:42px;padding:0 12px}
+@keyframes dropIn{from{opacity:0;transform:translate(-50%,-24px) scale(.97)}to{opacity:1;transform:translate(-50%,0)}}
+
+/* ---------- sheet ---------- */
+.sheet-wrap{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-end;justify-content:center}
+.sheet-bg{position:absolute;inset:0;background:rgba(2,4,10,.6);animation:fade .3s both}
+.sheet{position:relative;width:min(560px,100%);max-height:90vh;overflow:auto;padding:10px 20px calc(24px + env(safe-area-inset-bottom,0px));border-radius:30px 30px 0 0;background:var(--glass-2);border:1px solid var(--line-2);border-bottom:0;-webkit-backdrop-filter:blur(34px) saturate(170%);backdrop-filter:blur(34px) saturate(170%);animation:sheetUp .5s var(--ease) both}
+.grabber{width:40px;height:5px;border-radius:3px;background:var(--ink-4);margin:0 auto 14px}
+.sh-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:6px}
+.sh-head h2{font-family:var(--f-display);font-weight:800;font-size:28px;letter-spacing:.03em;text-transform:uppercase}
+.sh-sec{padding:16px 0;border-top:1px solid var(--line)}
+.sh-head+.sh-sec{border-top:0}
+.sh-sec h3{font-size:15px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.sh-sec h3 svg{width:18px;height:18px}
+.hours{display:flex;align-items:center;gap:10px}
+.hours .field{width:auto;flex:1}
+.steppers{display:grid;gap:10px}
+.stepper{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px}
+.stepper .lab{font-weight:600}
+.stepper .lab span{display:block;font-size:12px;color:var(--ink-3);font-weight:400}
+.stp{display:flex;align-items:center;gap:4px;padding:4px;border-radius:999px;background:rgba(0,0,0,.28);border:1px solid var(--line)}
+.stp button{width:38px;height:38px;border-radius:50%;border:0;background:rgba(255,255,255,.1);color:var(--ink);font-size:20px;line-height:1;cursor:pointer}
+.stp button:active{transform:scale(.92)}
+.stp output{min-width:72px;text-align:center;font-family:var(--f-display);font-weight:700;font-size:22px;font-variant-numeric:tabular-nums}
+@keyframes sheetUp{from{transform:translateY(100%)}to{transform:none}}
+@media (min-width:700px){.sheet-wrap{align-items:center}.sheet{border-radius:30px;border-bottom:1px solid var(--line-2)}}
+
+/* ---------- alarm ---------- */
+.alarm{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:calc(28px + env(safe-area-inset-top,0px)) 20px calc(28px + env(safe-area-inset-bottom,0px));text-align:center;color:#FFF5F5;background:radial-gradient(120% 80% at 50% 38%,#FF5E62 0%,#C0122F 48%,#3C0512 100%);overflow:hidden}
+.alarm-rings{position:absolute;left:50%;top:40%;width:0;height:0;pointer-events:none}
+.alarm-rings i{position:absolute;left:-160px;top:-160px;width:320px;height:320px;border-radius:50%;border:2px solid rgba(255,240,240,.55)}
+@media (prefers-reduced-motion:no-preference){
+  .alarm{animation:alarmPulse .9s ease-in-out infinite alternate}
+  .alarm-rings i{animation:ping 2.4s cubic-bezier(.2,.6,.3,1) infinite}
+  .alarm-rings i:nth-child(2){animation-delay:.8s}.alarm-rings i:nth-child(3){animation-delay:1.6s}
+}
+@keyframes ping{from{transform:scale(.25);opacity:.9}to{transform:scale(2.8);opacity:0}}
+@keyframes alarmPulse{from{filter:brightness(.85)}to{filter:brightness(1.12)}}
+.al-eyebrow{position:relative;font-family:var(--f-data);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,245,245,.82)}
+.al-title{position:relative;font-family:var(--f-display);font-weight:800;font-size:clamp(84px,25vw,150px);line-height:.82;text-transform:uppercase;letter-spacing:.005em;text-shadow:0 8px 40px rgba(60,0,10,.5)}
+.al-desc{position:relative;font-size:17px;max-width:30ch;color:rgba(255,245,245,.94)}
+.al-hint{position:relative;font-size:14px;font-weight:700;padding:7px 14px;border-radius:99px;background:rgba(0,0,0,.28)}
+.hold{position:relative;display:grid;place-items:center;width:156px;height:156px;border-radius:50%;border:0;background:rgba(40,0,8,.35);color:#FFF5F5;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;box-shadow:inset 0 0 0 2px rgba(255,245,245,.35),0 18px 40px rgba(40,0,8,.45);margin-top:6px}
+.hold svg{position:absolute;inset:0;width:100%;height:100%}
+.hold .h-l{position:relative;display:grid;gap:4px;font-family:var(--f-display);font-weight:800;font-size:26px;letter-spacing:.1em;text-transform:uppercase;line-height:1}
+.hold .h-l small{font-family:var(--f-data);font-weight:400;font-size:10px;letter-spacing:.12em}
+.al-sub{position:relative;font-family:var(--f-data);font-size:12px;color:rgba(255,245,245,.82)}
+
+/* ---------- wide ---------- */
+@media (min-width:1100px){
+  .app{max-width:1420px;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,.86fr);gap:24px;align-items:start;padding-block:28px 48px}
+  .app>.pane{display:flex}
+  .tabbar{display:none}
+  .toast{bottom:28px}
+  .horizon.sm{height:40px}
+}
+@media (max-width:380px){
+  .today{grid-template-columns:1fr}
+  .water-grid{grid-template-columns:96px minmax(0,1fr)}
+  details.day summary{grid-template-columns:54px 28px 34px 26px minmax(0,1fr) 26px;gap:6px}
+}
+</style>
+<style>
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;overscroll-behavior-y:none}
+img{max-width:100%}
+@media (display-mode: standalone){body{-webkit-user-select:none;user-select:none}input,textarea{-webkit-user-select:text;user-select:text}}
+.notify-row{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}
+.notify-row .btn{min-height:36px;padding:0 14px;font-size:13px}
+</style>
+</head>
+<body>
+
+<svg class="defs" aria-hidden="true" focusable="false">
+  <defs>
+    <radialGradient id="g-sun" cx=".38" cy=".34" r=".75"><stop offset="0" stop-color="#FFF0B0"/><stop offset=".55" stop-color="#FFC04D"/><stop offset="1" stop-color="#FF8A3D"/></radialGradient>
+    <linearGradient id="g-cloud" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#C6D2E4"/></linearGradient>
+    <linearGradient id="g-cloud-d" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#B8C3D6"/><stop offset="1" stop-color="#76839C"/></linearGradient>
+    <linearGradient id="g-moon" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#C8D3EC"/></linearGradient>
+    <linearGradient id="g-drop" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9BEEFF"/><stop offset="1" stop-color="#2F8CF0"/></linearGradient>
+    <linearGradient id="g-bolt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFEA8A"/><stop offset="1" stop-color="#FF9A2E"/></linearGradient>
+    <linearGradient id="g-sunrise" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFD06B"/><stop offset="1" stop-color="#FF6A59"/></linearGradient>
+    <linearGradient id="g-move" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF9BBE"/><stop offset="1" stop-color="#FF4F7E"/></linearGradient>
+    <linearGradient id="g-fuel" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D2F59A"/><stop offset="1" stop-color="#7FCF45"/></linearGradient>
+    <linearGradient id="g-water" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9BEEFF"/><stop offset="1" stop-color="#2F8CF0"/></linearGradient>
+    <linearGradient id="g-water-v" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8CE9FF"/><stop offset="1" stop-color="#2A7FE6"/></linearGradient>
+    <filter id="f-glow" x="-1" y="-1" width="3" height="3"><feGaussianBlur stdDeviation="4"/></filter>
+  </defs>
+</svg>
+
+<canvas id="scene" aria-hidden="true"></canvas>
+<div class="grain" aria-hidden="true"></div>
+
+<div class="banner" id="banner" hidden role="status" aria-live="polite">
+  <div class="bn-app"><svg class="logo" viewBox="0 0 20 20" aria-hidden="true"><rect width="20" height="20" rx="6" fill="url(#g-sunrise)"/><path d="M5 13.2a5 5 0 0 1 10 0z" fill="#1D1205"/><path d="M3.5 14.6h13" stroke="#1D1205" stroke-width="1.4" stroke-linecap="round"/></svg>Daybreak<span class="when">now</span></div>
+  <div class="bn-body"><div id="bn-icon"></div><div><h3 id="bn-title"></h3><p id="bn-text"></p></div></div>
+  <div class="bn-actions" id="bn-actions"></div>
+</div>
+
+<main class="app">
+  <!-- ================= WEATHER ================= -->
+  <section class="pane is-active" id="pane-weather" role="tabpanel" aria-labelledby="tab-weather">
+    <header class="hero">
+      <div class="hero-top">
+        <div class="loc"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 15s5-4.6 5-8.6A5 5 0 0 0 3 6.4C3 10.4 8 15 8 15z" fill="#FFB547"/><circle cx="8" cy="6.4" r="1.9" fill="#1D1205"/></svg><span>Wetumpka, AL</span></div>
+        <div class="src" id="wx-src">NWS · 4:53 AM</div>
+      </div>
+      <div class="clock" id="clock">&nbsp;</div>
+      <div class="temp" id="wx-temp">66<span class="deg">°</span></div>
+      <div class="cond" id="wx-cond">Clear</div>
+      <div class="hl" id="wx-hl">Feels like 66°  ·  H 92°  L 70°</div>
+      <p class="hero-line"><span class="pip"></span><span id="wx-line-t"></span></p>
+    </header>
+    <div class="horizon" id="hz-weather" aria-hidden="true"></div>
+    <article class="card" id="brief" aria-label="Today's brief">
+      <div class="c-head"><h2 class="c-title">Today's brief</h2><span class="c-meta" id="brief-meta"></span></div>
+      <div id="brief-rows"></div>
+    </article>
+    <article class="card" id="card-hourly">
+      <div class="c-head"><h2 class="c-title" id="hourly-title">Next 24 hours</h2><span class="c-meta" id="hourly-meta">Swipe</span></div>
+      <div class="scroll" id="hourly"></div>
+    </article>
+    <article class="card">
+      <div class="c-head"><h2 class="c-title">7-day forecast</h2><span class="c-meta">Tap a day</span></div>
+      <div id="daily"></div>
+    </article>
+    <div class="tiles" id="tiles"></div>
+    <p class="foot" id="wx-foot"></p>
+  </section>
+
+  <!-- ================= HEALTH ================= -->
+  <section class="pane" id="pane-health" role="tabpanel" aria-labelledby="tab-health">
+    <header class="phead">
+      <div>
+        <div class="eyebrow" id="h-date">Today</div>
+        <h1 class="ptitle">Health</h1>
+        <div class="sync" id="sync"><span class="led"></span><span id="sync-text">Saved on this phone</span></div>
+      </div>
+      <button class="icon-btn" type="button" id="open-sheet" aria-label="Goals and reminders"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg></button>
+    </header>
+    <div class="horizon sm" id="hz-health" aria-hidden="true"></div>
+
+    <article class="card today" aria-label="Today's totals">
+      <div id="rings"></div>
+      <div class="legend">
+        <div class="lg"><div class="lg-k"><i style="background:var(--move)"></i>Steps</div><div class="lg-v" id="lg-move">0<small>/ 8,000</small></div></div>
+        <div class="lg"><div class="lg-k"><i style="background:var(--fuel)"></i>Calories</div><div class="lg-v" id="lg-fuel">0<small>/ 2,000 kcal</small></div></div>
+        <div class="lg"><div class="lg-k"><i style="background:var(--water)"></i>Water</div><div class="lg-v" id="lg-water">0<small>/ 8 cups</small></div></div>
+      </div>
+      <div class="netline"><span>Burned walking <b id="net-burn">0 kcal</b></span><span>Net <b id="net-net">0 kcal</b></span></div>
+    </article>
+
+    <article class="card" id="card-food">
+      <div class="c-head"><h2 class="c-title"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7c-2.8-2.6-9-2.2-9 4.4C3 16.5 7 21 9.6 21c1.4 0 1.6-.7 2.4-.7s1 .7 2.4.7C17 21 21 16.5 21 11.4 21 4.8 14.8 4.4 12 7z" fill="url(#g-fuel)"/><path d="M12 7c0-2.4 1.2-4.2 3.4-5" fill="none" stroke="#F5F7FC" stroke-width="1.6" stroke-linecap="round"/></svg>Calories</h2><span class="c-meta" id="food-meta">Goal 2,000</span></div>
+      <div class="kpi"><div class="kpi-n" id="food-n">0</div><div class="kpi-s" id="food-s">of 2,000 kcal · 2,000 left</div></div>
+      <div class="mealbar" id="mealbar" aria-hidden="true"></div>
+      <div class="meal-legend" id="meal-legend"></div>
+      <form class="food-form" id="food-form" novalidate>
+        <label class="sr" for="food-name">Food</label>
+        <input class="field" id="food-name" type="text" maxlength="60" placeholder="What did you eat?" autocomplete="off">
+        <div class="seg" role="radiogroup" aria-label="Meal" id="meal-seg"></div>
+        <div class="food-row">
+          <label class="sr" for="food-kcal">Calories</label>
+          <input class="field" id="food-kcal" type="number" inputmode="numeric" min="1" max="5000" placeholder="Calories (kcal)">
+          <button class="btn btn-primary" type="submit">Add</button>
+        </div>
+        <p class="err" id="food-err" hidden></p>
+      </form>
+      <div class="eyebrow sub-h">Healthy snacks · tap to log</div>
+      <div class="chips" id="snack-chips"></div>
+      <div class="food-list" id="food-list"></div>
+    </article>
+
+    <article class="card" id="card-steps">
+      <div class="c-head"><h2 class="c-title"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 2.5c1.9 0 3 2.2 3 4.6 0 2.6-1 4.4-1.4 5.9H6.4C6 11.5 5.3 9.6 5.3 7.4 5.3 4.6 6.6 2.5 8.5 2.5zM6.6 14.6h3.6v1.9a1.8 1.8 0 0 1-3.6 0z" fill="url(#g-move)"/><path d="M15.5 7c1.9 0 3.2 2.1 3.2 4.9 0 2.2-.7 4.1-1.1 5.6h-3.7c-.4-1.5-1.4-3.3-1.4-5.9 0-2.4 1.1-4.6 3-4.6zM13.8 19.1h3.6v1.4a1.8 1.8 0 0 1-3.6 0z" fill="url(#g-move)" opacity=".75"/></svg>Steps</h2><span class="c-meta" id="steps-meta">8,000 to go</span></div>
+      <div class="kpi"><div class="kpi-n" id="steps-n">0</div><div class="kpi-s" id="steps-s">0.0 mi · ≈ 0 kcal burned</div></div>
+      <div class="prog"><i id="steps-prog" style="background:linear-gradient(90deg,#FF9BBE,#FF4F7E)"></i></div>
+      <div class="walk" id="walk" hidden></div>
+      <div class="btn-row quad" style="margin-top:14px">
+        <button class="btn" type="button" data-steps="250">+250</button>
+        <button class="btn" type="button" data-steps="500">+500</button>
+        <button class="btn" type="button" data-steps="1000">+1,000</button>
+        <button class="btn" type="button" data-steps="2500">+2,500</button>
+      </div>
+      <form class="inline-form" id="steps-form" novalidate>
+        <label class="sr" for="steps-in">Steps</label>
+        <input class="field" id="steps-in" type="number" inputmode="numeric" min="0" max="100000" placeholder="Steps">
+        <button class="btn" type="submit">Add</button>
+        <button class="btn btn-quiet" type="button" id="steps-set">Set total</button>
+      </form>
+      <p class="err" id="steps-err" hidden style="margin-top:8px"></p>
+      <div class="btn-row" style="margin-top:10px"><button class="btn btn-quiet" type="button" id="motion-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M3 9c-1 2-1 4 0 6M21 9c1 2 1 4 0 6"/></svg><span>Count with motion sensor</span></button></div>
+      <p class="note" id="motion-note" hidden style="margin-top:8px"></p>
+      <div class="week" id="steps-week"></div>
+    </article>
+
+    <article class="card" id="card-water">
+      <div class="c-head"><h2 class="c-title"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5S5 10 5 14.6a7 7 0 0 0 14 0C19 10 12 2.5 12 2.5z" fill="url(#g-water-v)"/><path d="M8.6 15.4a3.4 3.4 0 0 0 2.6 2.8" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity=".7"/></svg>Water</h2><span class="c-meta" id="water-meta">Goal 8 cups</span></div>
+      <div class="water-grid">
+        <svg class="glass" id="glass" viewBox="0 0 120 160" role="button" tabindex="0" aria-label="Add a cup of water">
+          <defs><clipPath id="glass-clip"><path d="M16 12h88l-9.6 134.4a6 6 0 0 1-6 5.6H31.6a6 6 0 0 1-6-5.6z"/></clipPath></defs>
+          <g clip-path="url(#glass-clip)">
+            <rect width="120" height="160" fill="rgba(255,255,255,.05)"/>
+            <g id="water-level" style="transform:translateY(162px);transition:transform 1s cubic-bezier(.2,.8,.2,1)">
+              <g class="wave b"><path d="M0 0q15-6 30 0t30 0 30 0 30 0 30 0 30 0 30 0 30 0V220H0z" fill="url(#g-water-v)" opacity=".45"/></g>
+              <g class="wave"><path d="M0 2q15 6 30 0t30 0 30 0 30 0 30 0 30 0 30 0 30 0V220H0z" fill="url(#g-water-v)"/></g>
+            </g>
+          </g>
+          <path d="M16 12h88l-9.6 134.4a6 6 0 0 1-6 5.6H31.6a6 6 0 0 1-6-5.6z" fill="none" stroke="rgba(255,255,255,.42)" stroke-width="2.2" stroke-linejoin="round"/>
+          <path d="M26 24l6.4 112" stroke="rgba(255,255,255,.22)" stroke-width="3.4" stroke-linecap="round"/>
+        </svg>
+        <div>
+          <div class="w-n" id="water-n">0<small>/ 8</small></div>
+          <div class="w-s" id="water-s">cups · 0 oz</div>
+          <div class="btn-row">
+            <button class="btn btn-water" type="button" id="water-plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Cup</button>
+            <button class="btn btn-icon" type="button" id="water-minus" aria-label="Remove one cup">−</button>
+          </div>
+        </div>
+      </div>
+      <div class="dots" id="dots"></div>
+      <p class="note" id="water-note" style="margin-top:12px"></p>
+    </article>
+
+    <article class="card" id="card-rem">
+      <div class="c-head"><h2 class="c-title">Reminders</h2><button class="btn btn-quiet" type="button" id="open-sheet-2" style="min-height:34px;padding:0 12px;font-size:13px">Edit schedule</button></div>
+      <div class="rem-row">
+        <div class="r-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5S5 10 5 14.6a7 7 0 0 0 14 0C19 10 12 2.5 12 2.5z" fill="url(#g-water-v)"/></svg></div>
+        <div><div class="r-t">Drink water</div><div class="r-s" id="rem-water-next"></div></div>
+        <label class="switch"><input type="checkbox" id="rem-water-on" aria-label="Water reminders"><span class="track"></span></label>
+      </div>
+      <div class="rem-row">
+        <div class="r-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7c-2.8-2.6-9-2.2-9 4.4C3 16.5 7 21 9.6 21c1.4 0 1.6-.7 2.4-.7s1 .7 2.4.7C17 21 21 16.5 21 11.4 21 4.8 14.8 4.4 12 7z" fill="url(#g-fuel)"/></svg></div>
+        <div><div class="r-t">Healthy snack</div><div class="r-s" id="rem-snack-next"></div></div>
+        <label class="switch"><input type="checkbox" id="rem-snack-on" aria-label="Snack reminders"><span class="track"></span></label>
+      </div>
+      <p class="note" style="margin-top:10px">Reminders chime and pop up while Daybreak is open. In Game Mode, water reminders run at any hour.</p>
+    </article>
+  </section>
+
+  <!-- ================= GAME ================= -->
+  <section class="pane" id="pane-game" role="tabpanel" aria-labelledby="tab-game">
+    <header class="phead">
+      <div>
+        <div class="eyebrow">2-hour sessions</div>
+        <h1 class="ptitle">Game Mode</h1>
+      </div>
+    </header>
+    <div class="horizon sm" id="hz-game" aria-hidden="true"></div>
+    <article class="card timer" id="timer">
+      <div class="g-ring" id="g-ring"></div>
+      <div class="g-actions" id="g-actions"></div>
+      <ul class="chips-s" id="g-status"></ul>
+    </article>
+    <article class="card">
+      <div class="c-head"><h2 class="c-title">Play time</h2><span class="c-meta">Last 7 days</span></div>
+      <div class="stats">
+        <div class="stat"><b id="st-today">0m</b><span>Today</span></div>
+        <div class="stat"><b id="st-week">0m</b><span>This week</span></div>
+        <div class="stat"><b id="st-count">0</b><span>Sessions</span></div>
+      </div>
+      <div class="week" id="game-week"></div>
+      <div id="sessions" style="margin-top:10px"></div>
+    </article>
+    <article class="card how">
+      <div class="c-head"><h2 class="c-title">How the alarm works</h2></div>
+      <p>Starting Game Mode sets a 2-hour timer and keeps your screen awake. When time is up, Daybreak sounds an alarm and vibrates until you press and hold the stop button. Keep Daybreak open with your volume up. Phones pause web apps that are closed or locked, so if time runs out while it's hidden, the alarm goes off the moment you come back.</p>
+      <button class="btn" type="button" id="test-alarm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>Test alarm sound</button>
+    </article>
+  </section>
+</main>
+
+<nav class="tabbar" aria-label="Sections">
+  <div class="tabs-in" role="tablist">
+    <span class="tab-ind" id="tab-ind" aria-hidden="true"></span>
+    <button class="tab" role="tab" id="tab-weather" aria-controls="pane-weather" aria-selected="true" data-tab="weather">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.2" r="3.2"/><path d="M9 1.8v1.3M3.6 3.6l.9.9M1.8 8.2h1.3M14.4 3.6l-.9.9"/><path d="M8 20.5h9.6a3.6 3.6 0 0 0 .4-7.2 5.6 5.6 0 0 0-10.6 1 3.1 3.1 0 0 0 .6 6.2z"/></svg>
+      <span>Weather</span>
+    </button>
+    <button class="tab" role="tab" id="tab-health" aria-controls="pane-health" aria-selected="false" data-tab="health">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5.2"/><circle cx="12" cy="12" r="1.6"/></svg>
+      <span>Health</span>
+    </button>
+    <button class="tab" role="tab" id="tab-game" aria-controls="pane-game" aria-selected="false" data-tab="game">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7.5h10a4.4 4.4 0 0 1 4.3 3.6l.9 4.6a2.3 2.3 0 0 1-4 1.9L16 15.3H8l-2.2 2.3a2.3 2.3 0 0 1-4-1.9l.9-4.6A4.4 4.4 0 0 1 7 7.5z"/><path d="M8 10v3M6.5 11.5h3"/><circle cx="15.5" cy="10.6" r=".7" fill="currentColor"/><circle cx="17.3" cy="12.4" r=".7" fill="currentColor"/></svg>
+      <span id="tab-game-l">Game</span>
+    </button>
+  </div>
+</nav>
+
+<div class="toast" id="toast" hidden role="status" aria-live="polite"><span id="toast-t"></span><button class="btn" type="button" id="toast-undo">Undo</button></div>
+
+<div class="sheet-wrap" id="sheet" hidden>
+  <div class="sheet-bg" id="sheet-bg"></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+    <div class="grabber" aria-hidden="true"></div>
+    <div class="sh-head"><h2 id="sheet-title">Goals &amp; reminders</h2><button class="btn btn-primary" type="button" id="sheet-done" style="min-height:40px">Done</button></div>
+    <div class="sh-sec">
+      <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5S5 10 5 14.6a7 7 0 0 0 14 0C19 10 12 2.5 12 2.5z" fill="url(#g-water-v)"/></svg>Water reminder every</h3>
+      <div class="seg" role="radiogroup" aria-label="Water reminder interval" id="seg-water"></div>
+    </div>
+    <div class="sh-sec">
+      <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7c-2.8-2.6-9-2.2-9 4.4C3 16.5 7 21 9.6 21c1.4 0 1.6-.7 2.4-.7s1 .7 2.4.7C17 21 21 16.5 21 11.4 21 4.8 14.8 4.4 12 7z" fill="url(#g-fuel)"/></svg>Snack reminder every</h3>
+      <div class="seg" role="radiogroup" aria-label="Snack reminder interval" id="seg-snack"></div>
+    </div>
+    <div class="sh-sec">
+      <h3>Active hours</h3>
+      <div class="hours"><label class="sr" for="rem-start">Start</label><select class="field" id="rem-start"></select><span class="note">to</span><label class="sr" for="rem-end">End</label><select class="field" id="rem-end"></select></div>
+    </div>
+    <div class="sh-sec">
+      <h3>Daily goals</h3>
+      <div class="steppers">
+        <div class="stepper"><div class="lab">Steps</div><div class="stp" data-key="steps" data-step="500" data-min="1000" data-max="40000"><button type="button" data-d="-1" aria-label="Lower step goal">−</button><output id="out-steps">8,000</output><button type="button" data-d="1" aria-label="Raise step goal">+</button></div></div>
+        <div class="stepper"><div class="lab">Calories</div><div class="stp" data-key="kcal" data-step="50" data-min="1000" data-max="5000"><button type="button" data-d="-1" aria-label="Lower calorie goal">−</button><output id="out-kcal">2,000</output><button type="button" data-d="1" aria-label="Raise calorie goal">+</button></div></div>
+        <div class="stepper"><div class="lab">Water<span>cups of 8 oz</span></div><div class="stp" data-key="water" data-step="1" data-min="2" data-max="20"><button type="button" data-d="-1" aria-label="Lower water goal">−</button><output id="out-water">8</output><button type="button" data-d="1" aria-label="Raise water goal">+</button></div></div>
+      </div>
+      <p class="note" style="margin-top:12px">On days the forecast high reaches 90°F, Daybreak adds 2 cups to your water goal (1 cup at 85°F).</p>
+    </div>
+  </div>
+</div>
+
+<div class="alarm" id="alarm" hidden role="alertdialog" aria-modal="true" aria-labelledby="al-title" aria-describedby="al-desc">
+  <div class="alarm-rings" aria-hidden="true"><i></i><i></i><i></i></div>
+  <div class="al-eyebrow">Game Mode · 2:00:00 played</div>
+  <h2 class="al-title" id="al-title">Time's up</h2>
+  <p class="al-desc" id="al-desc">Stand up, stretch, and drink a cup of water.</p>
+  <p class="al-hint" id="al-hint" hidden>Tap the screen to turn on the sound</p>
+  <button class="hold" type="button" id="hold">
+    <svg viewBox="0 0 156 156" aria-hidden="true"><circle cx="78" cy="78" r="72" fill="none" stroke="rgba(255,245,245,.18)" stroke-width="6"/><circle id="hold-ring" cx="78" cy="78" r="72" fill="none" stroke="#FFF5F5" stroke-width="6" stroke-linecap="round" stroke-dasharray="452.39" stroke-dashoffset="452.39" transform="rotate(-90 78 78)"/></svg>
+    <span class="h-l">Hold<small>to stop</small></span>
+  </button>
+  <p class="al-sub" id="al-sub"></p>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ================= Forecast: National Weather Service, Oct 1 2026, 4:53 AM CDT ================= */
+const WX = {
+  place: 'Wetumpka, AL', lat: 32.58, lon: -86.134,
+  issued: '2026-10-01T04:53:00-05:00',
+  obs: { t: '2026-10-01T04:53:00-05:00', temp: 66, dew: 64, rh: 93, wind: 5, dir: 90, pressure: 30.03, mb: 1016.6, vis: 10 },
+  hourStart: '2026-10-01T05:00:00-05:00',
+  // temp °F, dew point, heat index (0 = none), wind mph, wind from (deg), sky cover %, rain chance %, humidity %, weather (T storms, R rain)
+  hours: [
+    [66,65,0,3,90,5,0,97,''],[66,65,0,5,90,6,0,97,''],[66,65,0,5,90,6,0,97,''],[69,67,0,6,100,8,0,93,''],
+    [72,69,0,7,110,15,0,90,''],[79,70,79,7,120,14,0,74,''],[82,69,85,8,120,12,0,65,''],[84,69,88,9,120,11,0,61,''],
+    [87,68,91,9,120,15,4,53,''],[89,67,92,9,120,15,4,48,''],[89,67,92,8,120,14,4,48,''],[91,66,94,8,120,19,7,44,''],
+    [89,66,92,8,130,25,7,47,''],[87,67,90,7,120,28,7,52,''],[83,68,86,6,120,29,4,61,''],[79,68,79,5,110,24,4,69,''],
+    [77,69,77,5,110,24,4,76,''],[76,69,76,3,120,24,2,79,''],[75,69,75,2,110,23,2,82,''],[74,70,0,2,120,18,2,87,''],
+    [73,70,0,2,100,9,2,90,''],[72,70,0,2,100,5,2,93,''],[72,70,0,2,100,7,2,93,''],[71,70,0,3,100,16,2,97,''],
+    [71,70,0,3,90,20,2,97,''],[71,70,0,3,90,28,2,97,''],[70,70,0,3,90,37,2,100,''],[72,71,0,3,100,33,2,97,''],
+    [76,72,0,5,120,34,2,87,''],[81,73,0,5,130,30,2,77,''],[85,73,0,6,130,27,2,67,''],[86,73,0,6,130,37,2,65,''],
+    [88,72,0,5,140,46,41,59,'T'],[90,72,0,5,130,40,41,56,'T'],[88,72,0,5,130,36,41,59,'T'],[88,72,0,5,120,43,41,59,'T'],
+    [86,72,0,3,120,46,41,63,'T'],[82,73,0,3,130,49,41,74,'T'],[79,73,0,2,130,51,31,82,'T'],[76,73,0,1,140,28,31,90,'T'],
+    [75,73,0,1,140,44,31,94,'T'],[75,73,0,1,140,60,31,94,'T'],[74,73,0,1,140,61,31,97,'T'],[74,73,0,1,140,62,31,97,'T'],
+    [73,73,0,1,140,64,35,100,'R'],[73,72,0,1,140,67,35,97,'R'],[72,72,0,1,130,70,35,100,'R'],[72,72,0,1,120,73,35,97,'R']
+  ],
+  daily: [
+    { d:'2026-10-01', hi:92, lo:70, pop:7,  kind:'clear',   short:'Sunny and hot',        text:'Sunny and hot, high near 92 with a light southeast breeze. Mostly clear tonight, low around 70.' },
+    { d:'2026-10-02', hi:91, lo:71, pop:40, kind:'storm',   short:'Afternoon storms',     text:'Mostly sunny, then a 40% chance of showers and thunderstorms in the afternoon and evening. High 91, low 71.' },
+    { d:'2026-10-03', hi:86, lo:70, pop:80, kind:'rain',    short:'Showers',              text:'Showers likely, with thunderstorms possible in the afternoon. 80% chance of rain. High 86, low 70.' },
+    { d:'2026-10-04', hi:80, lo:67, pop:90, kind:'rain',    short:'Rainy',                text:'Showers through the day with storms possible. 90% chance of rain. High 80, low 67.' },
+    { d:'2026-10-05', hi:80, lo:62, pop:40, kind:'showers', short:'Chance of showers',    text:'Mostly cloudy with a 40% chance of showers. High 80, low 62.' },
+    { d:'2026-10-06', hi:78, lo:58, pop:20, kind:'partly',  short:'Mostly sunny',         text:'Mostly sunny with a slight chance of a shower. High 78, low 58.' },
+    { d:'2026-10-07', hi:74, lo:null, pop:30, kind:'partly', short:'Mostly sunny, cooler', text:'Mostly sunny and cooler, with a 30% chance of a shower. High 74.' }
+  ]
+};
+
+/* ================= constants ================= */
+const TZ = 'America/Chicago';
+const GAME_MS = 2 * 60 * 60 * 1000;
+const STEP_KCAL = 0.04, STEPS_PER_MILE = 2200, HOLD_MS = 1500;
+const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
+const SNACKS = [
+  { name:'Apple', kcal:95, note:'1 medium' },
+  { name:'Banana', kcal:105, note:'1 medium' },
+  { name:'Greek yogurt', kcal:90, note:'plain, 5.3 oz' },
+  { name:'Almonds', kcal:165, note:'1 oz, about 23' },
+  { name:'Hard-boiled egg', kcal:78, note:'1 large' },
+  { name:'Carrots & hummus', kcal:105, note:'10 baby carrots, 2 tbsp' },
+  { name:'String cheese', kcal:80, note:'1 stick' },
+  { name:'Orange', kcal:62, note:'1 medium' },
+  { name:'Cottage cheese', kcal:110, note:'1/2 cup, low-fat' }
+];
+const DEF_PROFILE = {
+  goals: { kcal: 2000, steps: 8000, water: 8 },
+  reminders: { waterOn: true, waterMins: 60, snackOn: true, snackMins: 180, startHour: 8, endHour: 21 },
+  game: null
+};
+
+/* ================= utils ================= */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const num = (n) => Math.round(n).toLocaleString('en-US');
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const rid = () => Math.random().toString(36).slice(2, 10);
+const RM = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+const isWide = () => window.innerWidth >= 1100;
+function setHTML(el, html) { if (el.__h !== html) { el.innerHTML = html; el.__h = html; } }
+function haptic(p) { try { navigator.vibrate && navigator.vibrate(p == null ? 8 : p); } catch (e) {} }
+
+const fC = (o) => new Intl.DateTimeFormat('en-US', Object.assign({ timeZone: TZ }, o));
+const F_TIME = fC({ hour:'numeric', minute:'2-digit' });
+const F_HOUR = fC({ hour:'numeric' });
+const F_WEEK = fC({ weekday:'short' });
+const F_WEEKLONG = fC({ weekday:'long' });
+const F_LONG = fC({ weekday:'long', month:'short', day:'numeric' });
+const F_YMD = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year:'numeric', month:'2-digit', day:'2-digit' });
+const ymdC = (t) => F_YMD.format(new Date(t));
+const tC = (t) => F_TIME.format(new Date(t));
+const hC = (t) => F_HOUR.format(new Date(t));
+const tLocal = (t) => new Date(t).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
+const noon = (ymd) => Date.parse(ymd + 'T12:00:00-05:00');
+function localKey(d) { d = d || new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+const dayName = (key) => 'day-' + key;
+function fmtClock(ms) { ms = Math.max(0, ms); const s = Math.ceil(ms / 1000); return Math.floor(s / 3600) + ':' + String(Math.floor(s % 3600 / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
+function fmtLen(ms) { const m = Math.max(0, Math.round(ms / 60000)); const h = Math.floor(m / 60); return h ? h + 'h ' + (m % 60) + 'm' : m + 'm'; }
+const rgb = (a, al) => al == null ? 'rgb(' + a.map(Math.round).join(',') + ')' : 'rgba(' + a.map(Math.round).join(',') + ',' + al + ')';
+const mix = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k);
+
+/* ================= astronomy (after Agafonkin's SunCalc) ================= */
+const RAD = Math.PI / 180, J1970 = 2440588, J2000 = 2451545, DAYMS = 86400000, OBL = RAD * 23.4397;
+const LW = RAD * -WX.lon, PHI = RAD * WX.lat;
+const toDays = (t) => t / DAYMS - 0.5 + J1970 - J2000;
+const raOf = (l, b) => Math.atan2(Math.sin(l) * Math.cos(OBL) - Math.tan(b) * Math.sin(OBL), Math.cos(l));
+const decOf = (l, b) => Math.asin(Math.sin(b) * Math.cos(OBL) + Math.cos(b) * Math.sin(OBL) * Math.sin(l));
+const sidereal = (d) => RAD * (280.16 + 360.9856235 * d) - LW;
+const altOf = (H, dec) => Math.asin(Math.sin(PHI) * Math.sin(dec) + Math.cos(PHI) * Math.cos(dec) * Math.cos(H));
+const azOf = (H, dec) => Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(PHI) - Math.tan(dec) * Math.cos(PHI));
+function sunCoords(d) { const M = RAD * (357.5291 + 0.98560028 * d); const C = RAD * (1.9148 * Math.sin(M) + 0.02 * Math.sin(2 * M) + 0.0003 * Math.sin(3 * M)); const L = M + C + RAD * 102.9372 + Math.PI; return { dec: decOf(L, 0), ra: raOf(L, 0) }; }
+function moonCoords(d) { const L = RAD * (218.316 + 13.176396 * d), M = RAD * (134.963 + 13.064993 * d), F = RAD * (93.272 + 13.22935 * d); const l = L + RAD * 6.289 * Math.sin(M), b = RAD * 5.128 * Math.sin(F); return { ra: raOf(l, b), dec: decOf(l, b), dist: 385001 - 20905 * Math.cos(M) }; }
+function sunPos(t) { const d = toDays(t), c = sunCoords(d), H = sidereal(d) - c.ra; return { alt: altOf(H, c.dec) / RAD, az: azOf(H, c.dec) / RAD }; }
+function moonPos(t) { const d = toDays(t), c = moonCoords(d), H = sidereal(d) - c.ra; let h = altOf(H, c.dec); const hh = Math.max(h, 0); h += 0.0002967 / Math.tan(hh + 0.00312536 / (hh + 0.08901179)); return { alt: h / RAD, az: azOf(H, c.dec) / RAD }; }
+function moonIllum(t) {
+  const d = toDays(t), s = sunCoords(d), m = moonCoords(d), sd = 149598000;
+  const phi = Math.acos(Math.sin(s.dec) * Math.sin(m.dec) + Math.cos(s.dec) * Math.cos(m.dec) * Math.cos(s.ra - m.ra));
+  const inc = Math.atan2(sd * Math.sin(phi), m.dist - sd * Math.cos(phi));
+  const ang = Math.atan2(Math.cos(s.dec) * Math.sin(s.ra - m.ra), Math.sin(s.dec) * Math.cos(m.dec) - Math.cos(s.dec) * Math.sin(m.dec) * Math.cos(s.ra - m.ra));
+  return { fraction: (1 + Math.cos(inc)) / 2, phase: 0.5 + 0.5 * inc * (ang < 0 ? -1 : 1) / Math.PI };
+}
+function phaseName(p) {
+  if (p < .03 || p > .97) return 'New moon';
+  if (p < .22) return 'Waxing crescent';
+  if (p < .28) return 'First quarter';
+  if (p < .47) return 'Waxing gibbous';
+  if (p < .53) return 'Full moon';
+  if (p < .72) return 'Waning gibbous';
+  if (p < .78) return 'Last quarter';
+  return 'Waning crescent';
+}
+const evCache = {};
+function crossings(key, fn, thr, now) {
+  const hour = Math.floor(now / 3600000);
+  if (evCache[key] && evCache[key].hour === hour) return evCache[key].ev;
+  const ev = [], step = 120000, from = now - 36 * 3600000, to = now + 36 * 3600000;
+  let prev = fn(from);
+  for (let t = from + step; t <= to; t += step) {
+    const a = fn(t);
+    if (prev < thr && a >= thr) ev.push({ type: 'rise', t: t - step + step * ((thr - prev) / (a - prev)) });
+    if (prev >= thr && a < thr) ev.push({ type: 'set', t: t - step + step * ((thr - prev) / (a - prev)) });
+    prev = a;
+  }
+  evCache[key] = { hour, ev };
+  return ev;
+}
+function todaySun(now) {
+  const ev = crossings('sun', (t) => sunPos(t).alt, -0.833, now), today = ymdC(now);
+  const rise = ev.find(e => e.type === 'rise' && ymdC(e.t) === today);
+  const set = ev.find(e => e.type === 'set' && ymdC(e.t) === today);
+  const nextRise = ev.find(e => e.type === 'rise' && e.t > now);
+  return { rise: rise && rise.t, set: set && set.t, nextRise: nextRise && nextRise.t, ev };
+}
+function nextMoonEvents(now) {
+  const ev = crossings('moon', (t) => moonPos(t).alt, 0.133, now);
+  return { rise: (ev.find(e => e.type === 'rise' && e.t > now) || {}).t, set: (ev.find(e => e.type === 'set' && e.t > now) || {}).t };
+}
+const isDayAt = (t) => sunPos(t).alt > -0.833;
+function moonPath(cx, cy, r, phase) {
+  const waxing = phase < .5, crescent = phase < .25 || phase > .75;
+  const rx = Math.abs(Math.cos(2 * Math.PI * phase)) * r;
+  const limb = waxing ? 1 : 0, term = waxing ? (crescent ? 0 : 1) : (crescent ? 1 : 0);
+  return 'M' + cx + ' ' + (cy - r) + 'A' + r + ' ' + r + ' 0 0 ' + limb + ' ' + cx + ' ' + (cy + r) + 'A' + rx.toFixed(2) + ' ' + r + ' 0 0 ' + term + ' ' + cx + ' ' + (cy - r) + 'Z';
+}
+
+/* ================= weather model ================= */
+const H0 = Date.parse(WX.hourStart);
+const H = WX.hours.map((r, i) => ({ t: H0 + i * 3600000, temp: r[0], dew: r[1], hi: r[2] || null, wind: r[3], dir: r[4], sky: r[5], pop: r[6], rh: r[7], wx: r[8] }));
+const feels = (h) => h.hi || h.temp;
+function kindOf(h) {
+  if (h.wx === 'T' && h.pop >= 30) return 'storm';
+  if (h.wx === 'R' && h.pop >= 30) return 'rain';
+  if (h.sky < 25) return 'clear';
+  if (h.sky < 60) return 'partly';
+  if (h.sky < 85) return 'mostly';
+  return 'cloudy';
+}
+function condLabel(kind, day) {
+  return ({ clear: day ? 'Sunny' : 'Clear', partly: 'Partly cloudy', mostly: 'Mostly cloudy', cloudy: 'Cloudy', rain: 'Rain likely', showers: 'Chance of showers', storm: 'Thunderstorms' })[kind] || 'Fair';
+}
+const dayRow = (t) => WX.daily.find(d => d.d === ymdC(t));
+function nowWx(now) {
+  const obsT = Date.parse(WX.obs.t);
+  const h = H.find(x => now >= x.t - 1800000 && now < x.t + 1800000);
+  if (now >= obsT - 1800000 && now - obsT < 75 * 60000) {
+    const ref = h || H[0];
+    return { src: 'obs', temp: WX.obs.temp, feels: WX.obs.temp, dew: WX.obs.dew, rh: WX.obs.rh, wind: WX.obs.wind, dir: WX.obs.dir, sky: ref.sky, pop: ref.pop, kind: kindOf({ sky: ref.sky, pop: 0, wx: '' }) };
+  }
+  if (h) return { src: 'hour', t: h.t, temp: h.temp, feels: feels(h), dew: h.dew, rh: h.rh, wind: h.wind, dir: h.dir, sky: h.sky, pop: h.pop, kind: kindOf(h) };
+  const d = dayRow(now);
+  if (d) return { src: 'day', d, kind: d.kind, sky: ({ clear: 10, partly: 40, mostly: 70, cloudy: 90, showers: 60, rain: 90, storm: 95 })[d.kind], pop: d.pop };
+  return { src: 'none', kind: 'partly', sky: 40, pop: 0 };
+}
+const live = (w) => w.src === 'obs' || w.src === 'hour';
+function todayHigh(now) { const d = dayRow(now); return d ? d.hi : null; }
+function heatBonus(now) { const hi = todayHigh(now); return hi == null ? 0 : hi >= 90 ? 2 : hi >= 85 ? 1 : 0; }
+function beaufort(mph) { const s = [[1,'Calm'],[4,'Light air'],[8,'Light breeze'],[13,'Gentle breeze'],[19,'Moderate breeze'],[25,'Fresh breeze'],[32,'Strong breeze'],[39,'Near gale'],[1e9,'Gale']]; for (let i = 0; i < s.length; i++) if (mph < s[i][0]) return { n: i, w: s[i][1] }; return { n: 8, w: 'Gale' }; }
+function dewWord(d) { return d < 55 ? 'Dry' : d < 60 ? 'Comfortable' : d < 65 ? 'Sticky' : d < 70 ? 'Muggy' : 'Oppressive'; }
+function heatWord(f) { return f < 80 ? 'Comfortable' : f < 90 ? 'Caution' : f < 103 ? 'Extreme caution' : f < 125 ? 'Danger' : 'Extreme danger'; }
+function baroWord(p) { return p < 29.2 ? 'Stormy' : p < 29.6 ? 'Rain' : p < 29.9 ? 'Change' : p < 30.3 ? 'Fair' : 'Very dry'; }
+function compass(deg) { const n = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW']; return n[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16]; }
+const DIRW = { N:'north', NNE:'north-northeast', NE:'northeast', ENE:'east-northeast', E:'east', ESE:'east-southeast', SE:'southeast', SSE:'south-southeast', S:'south', SSW:'south-southwest', SW:'southwest', WSW:'west-southwest', W:'west', WNW:'west-northwest', NW:'northwest', NNW:'north-northwest' };
+function bestWalk(now) {
+  const c = H.filter(h => h.t + 3600000 > now && h.t < now + 26 * 3600000 && sunPos(h.t + 1800000).alt > 3 && h.pop < 30);
+  if (!c.length) return null;
+  let best = null, bs = 1e9;
+  c.forEach(h => { const f = feels(h); const s = Math.abs(f - 64) + h.pop * .3 + Math.max(0, f - 80) * 1.5; if (s < bs - .01) { bs = s; best = h; } });
+  return best;
+}
+const TEMP_STOPS = [[48,[118,186,255]],[62,[134,224,214]],[74,[180,232,140]],[82,[255,211,107]],[92,[255,128,72]],[102,[255,82,82]]];
+function tempRGB(t) {
+  if (t <= TEMP_STOPS[0][0]) return TEMP_STOPS[0][1];
+  for (let i = 1; i < TEMP_STOPS.length; i++) { const [b, cb] = TEMP_STOPS[i], [a, ca] = TEMP_STOPS[i - 1]; if (t <= b) return mix(ca, cb, (t - a) / (b - a)); }
+  return TEMP_STOPS[TEMP_STOPS.length - 1][1];
+}
+
+/* ================= icons ================= */
+function sunG(cx, cy, r) {
+  let rays = '';
+  for (let a = 0; a < 360; a += 45) { const k = a * RAD; rays += '<line x1="' + (cx + Math.cos(k) * (r + 2.8)).toFixed(1) + '" y1="' + (cy + Math.sin(k) * (r + 2.8)).toFixed(1) + '" x2="' + (cx + Math.cos(k) * (r + 5.6)).toFixed(1) + '" y2="' + (cy + Math.sin(k) * (r + 5.6)).toFixed(1) + '"/>'; }
+  return '<g stroke="#FFC04D" stroke-width="2.1" stroke-linecap="round">' + rays + '</g><circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="url(#g-sun)"/>';
+}
+const MOON_I = '<path d="M19.4 5a11 11 0 1 0 8.4 17.9A9.4 9.4 0 0 1 19.4 5z" fill="url(#g-moon)"/><circle cx="12.5" cy="17" r="1.5" fill="#B7C3DE" opacity=".6"/><circle cx="16.5" cy="22.5" r="1" fill="#B7C3DE" opacity=".6"/>';
+const CLOUD = (fill, tf) => '<path' + (tf ? ' transform="' + tf + '"' : '') + ' d="M9.5 26h14a5.5 5.5 0 0 0 .8-10.94A8 8 0 0 0 9 16.2 4.9 4.9 0 0 0 9.5 26z" fill="' + fill + '"/>';
+const DROP = (x, y) => '<path d="M' + x + ' ' + y + 'c1.3 1.9 2 3 2 3.9a2 2 0 0 1-4 0c0-.9.7-2 2-3.9z" fill="url(#g-drop)"/>';
+function icon(kind, day, size, attrs) {
+  const s = size || 32;
+  const orb = day ? sunG(16, 16, 6.2) : MOON_I;
+  const small = '<g transform="translate(11 10.5) scale(.66) translate(-16 -16)">' + orb + '</g>';
+  let g;
+  switch (kind) {
+    case 'clear': g = orb; break;
+    case 'partly': g = small + CLOUD('url(#g-cloud)', 'translate(2.5 1.5) scale(.9)'); break;
+    case 'mostly': g = CLOUD('url(#g-cloud-d)', 'translate(-4 -6) scale(.8)') + CLOUD('url(#g-cloud)', 'translate(1 1)'); break;
+    case 'cloudy': g = CLOUD('url(#g-cloud-d)', 'translate(-3 -7) scale(.85)') + CLOUD('url(#g-cloud)'); break;
+    case 'showers': g = small + CLOUD('url(#g-cloud)', 'translate(2.5 -2.5) scale(.9)') + DROP(13, 24.5) + DROP(19.5, 25.5); break;
+    case 'rain': g = CLOUD('url(#g-cloud)', 'translate(0 -4.5)') + DROP(10, 24) + DROP(16, 25.5) + DROP(22, 24); break;
+    case 'storm': g = CLOUD('url(#g-cloud-d)', 'translate(0 -5.5)') + '<path d="M17.6 19l-5.2 6.6h3.7l-2 5.6 6.6-7.8h-3.9l2.4-4.4z" fill="url(#g-bolt)"/>'; break;
+    default: g = CLOUD('url(#g-cloud)');
+  }
+  return '<svg viewBox="0 0 32 32" width="' + s + '" height="' + s + '" ' + (attrs || '') + ' aria-hidden="true">' + g + '</svg>';
+}
+const I_WALK = '<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="18" cy="6" r="3" fill="url(#g-sunrise)"/><path d="M15.5 11.5l-3 7.5 4 3.5-1.5 7M15.5 11.5l4.5 3 3.5-1.5M12.5 19l-4 3M14.5 12.5l-4 1.5-1.5 4" fill="none" stroke="#FF9A62" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const I_HEAT = '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="13" y="3" width="6" height="18" rx="3" fill="none" stroke="#FFC04D" stroke-width="2"/><circle cx="16" cy="23.5" r="5" fill="url(#g-sun)"/><path d="M16 21V10" stroke="#FF8A3D" stroke-width="2.4" stroke-linecap="round"/></svg>';
+
+/* ================= weather rendering ================= */
+let tempShown = null;
+function countUp(el, to) {
+  const from = to - 9, t0 = performance.now(), dur = 1100;
+  const step = (t) => { const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3); el.innerHTML = Math.round(from + (to - from) * e) + '<span class="deg">°</span>'; if (k < 1) requestAnimationFrame(step); };
+  el.innerHTML = from + '<span class="deg">°</span>';
+  requestAnimationFrame(step);
+}
+function renderHero(now, w) {
+  const d = dayRow(now), day = isDayAt(now), tempEl = $('wx-temp');
+  if (live(w)) {
+    if (tempShown === null && !RM) countUp(tempEl, w.temp);
+    else if (tempShown !== w.temp) tempEl.innerHTML = w.temp + '<span class="deg">°</span>';
+    tempShown = w.temp;
+    $('wx-cond').textContent = condLabel(w.kind, day);
+    $('wx-hl').textContent = 'Feels like ' + w.feels + '°' + (d ? '  ·  H ' + d.hi + '°' + (d.lo != null ? '  L ' + d.lo + '°' : '') : '');
+  } else if (w.src === 'day') {
+    tempEl.innerHTML = w.d.hi + '<span class="deg">°</span><small>High</small>'; tempShown = -1;
+    $('wx-cond').textContent = w.d.short;
+    $('wx-hl').textContent = (w.d.lo != null ? 'Low ' + w.d.lo + '°' : 'Low not yet forecast') + (w.d.pop >= 10 ? '  ·  Rain ' + w.d.pop + '%' : '');
+  } else {
+    tempEl.innerHTML = '--<span class="deg">°</span>'; tempShown = -1;
+    $('wx-cond').textContent = 'Forecast expired';
+    $('wx-hl').textContent = 'Last forecast day: Wed, Oct 7';
+  }
+  const hr = new Date(now).getHours(), greet = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
+  const s = todaySun(now);
+  let line = '';
+  if (w.src === 'none') line = 'Ask Claude to refresh Daybreak with the latest NWS forecast.';
+  else if (s.rise && now < s.rise) line = greet + '. Sunrise in ' + fmtLen(s.rise - now) + '.';
+  else if (s.set && now < s.set) line = greet + '. Sunset at ' + tC(s.set) + '.';
+  else if (s.nextRise) line = greet + '. Sunrise tomorrow at ' + tC(s.nextRise) + '.';
+  $('wx-line-t').textContent = line;
+}
+function renderBrief(now) {
+  const rows = [], today = ymdC(now), d = dayRow(now);
+  if (d && d.hi >= 85) {
+    const hrs = H.filter(h => ymdC(h.t) === today && h.t + 3600000 > now);
+    let pk = null, fk = null;
+    hrs.forEach(h => { if (!pk || h.temp > pk.temp) pk = h; if (h.hi && (!fk || h.hi > fk.hi)) fk = h; });
+    const b = heatBonus(now);
+    let s = pk ? 'Up to ' + pk.temp + '° around ' + hC(pk.t) : 'High of ' + d.hi + '°';
+    if (fk && fk.hi > (pk ? pk.temp : 0)) s += ', feeling like ' + fk.hi + '°';
+    s += '. Your water goal is up ' + b + ' cup' + (b === 1 ? '' : 's') + '.';
+    rows.push([I_HEAT, (d.hi >= 90 ? 'Hot' : 'Warm') + ' afternoon ahead', s]);
+  }
+  const bw = bestWalk(now);
+  if (bw) {
+    const same = ymdC(bw.t) === today, s = todaySun(now);
+    let ctx = feels(bw) + '°' + (bw.pop < 10 ? ' and dry' : ', ' + bw.pop + '% rain chance');
+    if (s.rise && bw.t >= s.rise - 1800000 && bw.t <= s.rise + 5400000) ctx += ', just after sunrise';
+    else if (feels(bw) >= 85) ctx += '. It stays hot, so bring water';
+    rows.push([I_WALK, 'Best time to walk: ' + (same ? '' : 'tomorrow ') + hC(bw.t), ctx + '.']);
+  }
+  const rainy = WX.daily.find(x => x.d >= today && x.pop >= 60);
+  if (rainy) {
+    const isToday = rainy.d === today;
+    rows.push([icon('rain', true, 30), 'Rain ' + (isToday ? 'today' : 'on ' + F_WEEKLONG.format(new Date(noon(rainy.d)))), rainy.pop + '% chance. ' + (isToday ? 'Walk between showers or move indoors.' : 'Get your outdoor steps in before then.')]);
+  }
+  if (!rows.length && d) rows.push([icon(d.kind, true, 30), d.short, d.text]);
+  if (!rows.length) rows.push([icon('partly', true, 30), 'Forecast needs a refresh', 'Ask Claude to update Daybreak with the latest National Weather Service data.']);
+  $('brief-meta').textContent = F_WEEK.format(new Date(now)) + ' ' + hC(now);
+  setHTML($('brief-rows'), rows.map(r => '<div class="brief-row"><div class="b-ico">' + r[0] + '</div><div><div class="b-t">' + esc(r[1]) + '</div><div class="b-s">' + esc(r[2]) + '</div></div></div>').join(''));
+}
+function smooth(pts) {
+  let d = 'M' + pts[0][0].toFixed(1) + ',' + pts[0][1].toFixed(1);
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    d += ' C' + (p1[0] + (p2[0] - p0[0]) / 6).toFixed(1) + ',' + (p1[1] + (p2[1] - p0[1]) / 6).toFixed(1) + ' ' + (p2[0] - (p3[0] - p1[0]) / 6).toFixed(1) + ',' + (p2[1] - (p3[1] - p1[1]) / 6).toFixed(1) + ' ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1);
+  }
+  return d;
+}
+function renderHourly(now) {
+  const card = $('card-hourly');
+  const start = H.findIndex(h => h.t + 3600000 > now);
+  if (start < 0 || H.length - start < 3) { card.hidden = true; return; }
+  card.hidden = false;
+  const rows = H.slice(start, start + 24), last = rows[rows.length - 1];
+  $('hourly-title').textContent = rows.length < 24 ? 'Next ' + rows.length + ' hours' : 'Next 24 hours';
+  $('hourly-meta').textContent = rows.length < 24 ? 'Through ' + F_WEEK.format(new Date(last.t)) + ' ' + hC(last.t) : 'Swipe';
+  const cw = 60, W = rows.length * cw, Ht = 206, top = 84, bot = 136, base = 184;
+  const temps = rows.map(r => r.temp), mn = Math.min(...temps), mx = Math.max(...temps);
+  const yOf = (t) => bot - ((t - mn) / Math.max(1, mx - mn)) * (bot - top);
+  const pts = rows.map((r, i) => [i * cw + cw / 2, yOf(r.temp)]);
+  let s = '<svg viewBox="0 0 ' + W + ' ' + Ht + '" width="' + W + '" height="' + Ht + '" role="img" aria-label="Hourly temperature and rain chance">';
+  s += '<defs><linearGradient id="hl-line" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="' + W + '" y2="0">' + rows.map((r, i) => '<stop offset="' + ((i * cw + cw / 2) / W).toFixed(4) + '" stop-color="' + rgb(tempRGB(r.temp)) + '"/>').join('') + '</linearGradient>';
+  s += '<linearGradient id="hl-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF" stop-opacity=".14"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient></defs>';
+  rows.forEach((r, i) => { if (!isDayAt(r.t + 1800000)) s += '<rect x="' + i * cw + '" y="26" width="' + cw + '" height="' + (base - 26) + '" fill="rgba(0,0,0,.18)"/>'; });
+  const evs = todaySun(now).ev.filter(e => e.t > rows[0].t && e.t < last.t + 3600000), evCols = new Set();
+  evs.forEach(e => {
+    const x = ((e.t - rows[0].t) / 3600000) * cw + cw / 2;
+    evCols.add(Math.round((e.t - rows[0].t) / 3600000));
+    s += '<line x1="' + x.toFixed(1) + '" x2="' + x.toFixed(1) + '" y1="60" y2="' + base + '" stroke="#FFB547" stroke-width="1.2" stroke-dasharray="2 4" opacity=".7"/>';
+    s += '<text x="' + x.toFixed(1) + '" y="200" text-anchor="middle" class="s-ev">' + (e.type === 'rise' ? 'Sunrise ' : 'Sunset ') + esc(tC(e.t).replace(/ [AP]M$/, '')) + '</text>';
+  });
+  const line = smooth(pts);
+  s += '<path d="' + line + ' L' + pts[pts.length - 1][0] + ',' + base + ' L' + pts[0][0] + ',' + base + ' Z" fill="url(#hl-area)"/>';
+  s += '<path d="' + line + '" fill="none" stroke="url(#hl-line)" stroke-width="3" stroke-linecap="round"/>';
+  rows.forEach((r, i) => {
+    const x = i * cw + cw / 2, isNow = i === 0;
+    if (isNow) s += '<rect x="' + (x - 21) + '" y="4" width="42" height="18" rx="9" fill="url(#g-sunrise)"/>';
+    s += '<text x="' + x + '" y="17" text-anchor="middle" class="' + (isNow ? 's-now' : 's-time') + '">' + (isNow ? 'Now' : esc(hC(r.t))) + '</text>';
+    s += icon(kindOf(r), isDayAt(r.t + 1800000), 30, 'x="' + (x - 15) + '" y="27"');
+    s += '<circle cx="' + x + '" cy="' + pts[i][1].toFixed(1) + '" r="' + (isNow ? 5 : 3.2) + '" fill="' + (isNow ? '#FFFFFF' : rgb(tempRGB(r.temp))) + '"' + (isNow ? ' stroke="#0B1226" stroke-width="2"' : '') + '/>';
+    s += '<text x="' + x + '" y="' + (pts[i][1] - 11).toFixed(1) + '" text-anchor="middle" class="s-temp">' + r.temp + '°</text>';
+    const bh = Math.max(2, r.pop / 100 * 26);
+    s += '<rect x="' + (x - 9) + '" y="' + (base - bh).toFixed(1) + '" width="18" height="' + bh.toFixed(1) + '" rx="3" fill="' + (r.pop >= 10 ? 'url(#g-drop)' : 'rgba(255,255,255,.1)') + '"/>';
+    if (r.pop >= 10 && !evCols.has(i)) s += '<text x="' + x + '" y="200" text-anchor="middle" class="s-pop">' + r.pop + '%</text>';
+  });
+  setHTML($('hourly'), s + '</svg>');
+}
+function renderDaily(now, w) {
+  const today = ymdC(now), rows = WX.daily.filter(d => d.d >= today);
+  if (!rows.length) { setHTML($('daily'), '<p class="empty">No forecast days left. Ask Claude to refresh Daybreak.</p>'); return; }
+  const lows = rows.map(r => r.lo).filter(v => v != null), highs = rows.map(r => r.hi);
+  const mn = Math.min(...lows, ...highs) - 2, mx = Math.max(...highs) + 1, span = mx - mn;
+  setHTML($('daily'), rows.map(r => {
+    const isToday = r.d === today, name = isToday ? 'Today' : F_WEEK.format(new Date(noon(r.d)));
+    const lo = r.lo != null ? r.lo : r.hi - 6;
+    const left = (lo - mn) / span * 100, width = (r.hi - lo) / span * 100;
+    let bar = '<div class="bar"><i style="left:' + left.toFixed(1) + '%;width:' + width.toFixed(1) + '%;background:linear-gradient(90deg,' + rgb(tempRGB(lo)) + ',' + rgb(tempRGB(r.hi)) + ')' + (r.lo == null ? ';opacity:.45' : '') + '"></i>';
+    if (isToday && live(w)) bar += '<b style="left:' + clamp((w.temp - mn) / span * 100, 0, 100).toFixed(1) + '%"></b>';
+    bar += '</div>';
+    return '<details class="day"><summary aria-label="' + esc(name + ': ' + r.short + ', high ' + r.hi + (r.lo != null ? ', low ' + r.lo : '') + (r.pop >= 10 ? ', ' + r.pop + ' percent chance of rain' : '')) + '">' +
+      '<span class="d-name">' + esc(name) + '</span>' + icon(r.kind, true, 30) +
+      '<span class="d-pop">' + (r.pop >= 10 ? r.pop + '%' : '') + '</span><span class="d-lo">' + (r.lo != null ? r.lo + '°' : '–') + '</span>' + bar + '<span class="d-hi">' + r.hi + '°</span></summary>' +
+      '<p class="d-more">' + esc(r.text) + '</p></details>';
+  }).join(''));
+}
+
+/* tiles */
+const TILE_KEYS = ['wind', 'humid', 'sun', 'heat', 'rain', 'baro', 'vis'];
+function buildTiles() { $('tiles').innerHTML = TILE_KEYS.map(k => '<div class="card tile' + (k === 'sun' ? ' wide' : '') + '" id="tile-' + k + '"></div>').join(''); }
+const lbl = (svg, t) => '<div class="t-label">' + svg + esc(t) + '</div>';
+const L_WIND = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 6h8a2 2 0 1 0-2-2M2 10h11a2 2 0 1 1-2 2"/></svg>';
+const L_DROP = '<svg viewBox="0 0 16 16"><path d="M8 1.5S3.5 6.5 3.5 9.6a4.5 4.5 0 0 0 9 0C12.5 6.5 8 1.5 8 1.5z" fill="currentColor"/></svg>';
+const L_SUN = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 12h12M4.5 12a3.5 3.5 0 0 1 7 0M8 3.5v2M3.3 6.3l1.3 1.2M12.7 6.3l-1.3 1.2"/></svg>';
+const L_TH = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="6" y="1.5" width="4" height="9" rx="2"/><circle cx="8" cy="12" r="2.6"/></svg>';
+const L_GAUGE = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 11a5.5 5.5 0 1 1 11 0M8 11l3-4"/></svg>';
+const L_EYE = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg>';
+function scaleBar(stops, lo, hi, v, labels) {
+  const pos = clamp((v - lo) / (hi - lo) * 100, 0, 100);
+  const g = 'linear-gradient(90deg,' + stops.map(s => rgb(s[1]) + ' ' + ((s[0] - lo) / (hi - lo) * 100).toFixed(1) + '%').join(',') + ')';
+  return '<div class="scale" style="background:' + g + '"><i style="left:' + pos.toFixed(1) + '%"></i></div><div class="scale-l">' + labels.map(l => '<span>' + esc(l) + '</span>').join('') + '</div>';
+}
+function compassSVG(deg) {
+  const to = (deg + 180) % 360;
+  let ticks = '';
+  for (let a = 0; a < 360; a += 15) ticks += '<line x1="33" y1="4" x2="33" y2="' + (a % 90 === 0 ? 9 : 6.5) + '" transform="rotate(' + a + ' 33 33)" stroke="' + (a % 90 === 0 ? 'rgba(245,247,252,.7)' : 'rgba(245,247,252,.28)') + '" stroke-width="1.3"/>';
+  const L = (t, x, y) => '<text x="' + x + '" y="' + y + '" text-anchor="middle" font-family="DM Mono, monospace" font-size="7.5" fill="rgba(245,247,252,.6)">' + t + '</text>';
+  return '<svg viewBox="0 0 66 66" width="66" height="66" aria-hidden="true"><circle cx="33" cy="33" r="30" fill="rgba(0,0,0,.2)" stroke="rgba(255,255,255,.12)"/>' + ticks + L('N', 33, 18) + L('S', 33, 54) + L('E', 51, 35.5) + L('W', 15, 35.5) +
+    '<g transform="rotate(' + to + ' 33 33)"><path d="M33 13l5.2 9h-10.4z" fill="url(#g-sunrise)"/><line x1="33" y1="21" x2="33" y2="48" stroke="#F5F7FC" stroke-width="2.2" stroke-linecap="round"/><circle cx="33" cy="48" r="2.4" fill="#F5F7FC"/></g><circle cx="33" cy="33" r="2.2" fill="#0B1226" stroke="#F5F7FC" stroke-width="1.2"/></svg>';
+}
+function sunArc(now) {
+  const s = todaySun(now), W = 260, base = 82, x0 = 18, x1 = 242, top = 14;
+  const P = (f) => [x0 + (x1 - x0) * f, base - (base - top) * Math.sin(Math.PI * f)];
+  const pathTo = (fEnd) => { let p = ''; for (let i = 0; i <= 60; i++) { const q = P(fEnd * i / 60); p += (i ? 'L' : 'M') + q[0].toFixed(1) + ',' + q[1].toFixed(1); } return p; };
+  let f = null; if (s.rise && s.set) f = (now - s.rise) / (s.set - s.rise);
+  let o = '<svg class="sunarc" viewBox="0 0 ' + W + ' 104" role="img" aria-label="Sun path today"><defs><linearGradient id="arc-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFB547" stop-opacity=".28"/><stop offset="1" stop-color="#FFB547" stop-opacity="0"/></linearGradient></defs>';
+  o += '<line x1="4" y1="' + base + '" x2="' + (W - 4) + '" y2="' + base + '" stroke="rgba(255,255,255,.18)" stroke-width="1.3"/>';
+  o += '<path d="' + pathTo(1) + '" fill="none" stroke="rgba(245,247,252,.32)" stroke-width="1.4" stroke-dasharray="2.5 5"/>';
+  if (f != null && f > 0 && f < 1) {
+    const p = P(f), sp = pathTo(f);
+    o += '<path d="' + sp + ' L' + p[0].toFixed(1) + ',' + base + ' L' + x0 + ',' + base + 'Z" fill="url(#arc-fill)"/>';
+    o += '<path d="' + sp + '" fill="none" stroke="url(#g-sunrise)" stroke-width="2.6" stroke-linecap="round"/>';
+    o += '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="13" fill="#FFB547" opacity=".3" filter="url(#f-glow)"/><circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="7" fill="url(#g-sun)"/>';
+  } else {
+    const p = f != null && f >= 1 ? P(1) : P(0);
+    o += '<circle cx="' + p[0].toFixed(1) + '" cy="' + (base + 7) + '" r="6" fill="url(#g-sun)" opacity=".55"/>';
+  }
+  o += '<text x="' + x0 + '" y="100" class="s-time">' + (s.rise ? 'Rise ' + esc(tC(s.rise)) : '') + '</text><text x="' + x1 + '" y="100" text-anchor="end" class="s-time">' + (s.set ? 'Set ' + esc(tC(s.set)) : '') + '</text>';
+  return o + '</svg>';
+}
+function baroSVG(p) {
+  const lo = 28.5, hi = 31, cx = 75, cy = 72, r = 56;
+  const ang = (v) => Math.PI * (1 - (clamp(v, lo, hi) - lo) / (hi - lo));
+  const pt = (v, rr) => [cx + Math.cos(ang(v)) * rr, cy - Math.sin(ang(v)) * rr];
+  const arc = (a, b, col) => { const s = pt(a, r), e = pt(b, r); return '<path d="M' + s[0].toFixed(1) + ' ' + s[1].toFixed(1) + 'A' + r + ' ' + r + ' 0 0 1 ' + e[0].toFixed(1) + ' ' + e[1].toFixed(1) + '" fill="none" stroke="' + col + '" stroke-width="7"/>'; };
+  let o = '<svg class="baro" viewBox="0 0 150 92" role="img" aria-label="Barometer reading ' + p.toFixed(2) + ' inches of mercury">';
+  o += arc(28.5, 29.18, 'rgba(88,150,255,.75)') + arc(29.22, 29.58, 'rgba(88,210,255,.6)') + arc(29.62, 29.88, 'rgba(245,247,252,.35)') + arc(29.92, 30.28, 'rgba(255,181,71,.75)') + arc(30.32, 31, 'rgba(255,122,89,.75)');
+  for (let i = 0; i <= 25; i++) { const v = lo + i * .1, maj = i % 5 === 0; const a = pt(v, r - 7), b = pt(v, r - (maj ? 14 : 10)); o += '<line x1="' + a[0].toFixed(1) + '" y1="' + a[1].toFixed(1) + '" x2="' + b[0].toFixed(1) + '" y2="' + b[1].toFixed(1) + '" stroke="rgba(245,247,252,' + (maj ? .6 : .25) + ')" stroke-width="1.1"/>'; }
+  [['RAIN', 29.0], ['CHANGE', 29.75], ['FAIR', 30.3]].forEach(([t, v]) => { const q = pt(v, r - 25); o += '<text x="' + q[0].toFixed(1) + '" y="' + (q[1] + 3).toFixed(1) + '" text-anchor="middle" font-family="DM Mono, monospace" font-size="7" fill="rgba(245,247,252,.55)">' + t + '</text>'; });
+  const n = pt(p, r - 4);
+  o += '<line x1="' + cx + '" y1="' + cy + '" x2="' + n[0].toFixed(1) + '" y2="' + n[1].toFixed(1) + '" stroke="#F5F7FC" stroke-width="2.2" stroke-linecap="round"/><circle cx="' + cx + '" cy="' + cy + '" r="4.5" fill="url(#g-sunrise)"/>';
+  return o + '</svg>';
+}
+function moonGlyph(phase) { return '<svg viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="22" fill="rgba(200,212,240,.13)" stroke="rgba(255,255,255,.12)"/><path d="' + moonPath(26, 26, 22, phase) + '" fill="url(#g-moon)"/></svg>'; }
+function renderTiles(now, w) {
+  const T = (k, html) => { const el = $('tile-' + k); if (!html) { el.hidden = true; return; } el.hidden = false; setHTML(el, html); };
+  if (live(w)) {
+    const dn = compass(w.dir), bf = beaufort(w.wind);
+    T('wind', lbl(L_WIND, 'Wind') + '<div class="wind-row"><div><div class="t-val">' + w.wind + '<small>mph</small></div><div class="t-word" style="margin-top:6px">' + esc(bf.w) + '</div></div>' + compassSVG(w.dir) + '</div><div class="t-sub">From the ' + DIRW[dn] + '. Beaufort force ' + bf.n + '.</div>');
+    T('humid', lbl(L_DROP, 'Humidity') + '<div class="t-val">' + w.rh + '<small>%</small></div><div class="t-word">' + esc(dewWord(w.dew)) + '</div>' + scaleBar([[50,[134,224,214]],[57,[180,232,140]],[62,[255,211,107]],[67,[255,150,80]],[74,[255,82,82]]], 50, 76, w.dew, ['Dry', 'Muggy']) + '<div class="t-sub">Dew point ' + w.dew + '°.</div>');
+  } else { T('wind', ''); T('humid', ''); }
+  const s = todaySun(now), il = moonIllum(now), me = nextMoonEvents(now);
+  let sunLine = '';
+  if (s.rise && s.set) {
+    if (now < s.rise) sunLine = 'Sunrise in ' + fmtLen(s.rise - now) + ' · ' + fmtLen(s.set - s.rise) + ' of daylight today';
+    else if (now < s.set) sunLine = fmtLen(s.set - now) + ' of daylight left · sunset ' + tC(s.set);
+    else sunLine = 'Sun is down · sunrise ' + (s.nextRise ? tC(s.nextRise) : '–');
+  }
+  const mEv = me.set && (!me.rise || me.set < me.rise) ? 'Sets ' + tC(me.set) : (me.rise ? 'Rises ' + tC(me.rise) : '');
+  T('sun', lbl(L_SUN, 'Sun & moon') + '<div class="sunmoon"><div>' + sunArc(now) + '</div><div class="moonbox">' + moonGlyph(il.phase) + '<b>' + esc(phaseName(il.phase)) + '</b><span>' + Math.round(il.fraction * 100) + '% lit</span><span>' + esc(mEv) + '</span></div></div><div class="t-sub">' + esc(sunLine) + '</div>');
+  const todayHrs = H.filter(h => ymdC(h.t) === ymdC(now) && h.hi);
+  if (todayHrs.length) {
+    const pk = todayHrs.reduce((a, b) => b.hi > a.hi ? b : a, todayHrs[0]);
+    T('heat', lbl(L_TH, 'Heat index') + '<div class="t-val">' + pk.hi + '°</div><div class="t-word">' + esc(heatWord(pk.hi)) + '</div>' + scaleBar([[70,[134,224,214]],[80,[255,224,120]],[90,[255,170,80]],[103,[255,82,82]],[125,[190,30,70]]], 70, 125, pk.hi, ['80', '90', '103', '125']) + '<div class="t-sub">Feels-like peak around ' + esc(hC(pk.t)) + '.</div>');
+  } else {
+    const d = dayRow(now);
+    T('heat', lbl(L_TH, 'High today') + '<div class="t-val">' + (d ? d.hi + '°' : '–') + '</div><div class="t-word">' + (d ? esc(d.short) : 'No forecast') + '</div><div class="t-sub">From the daily forecast.</div>');
+  }
+  const next12 = H.filter(h => h.t + 3600000 > now).slice(0, 12);
+  if (next12.length >= 4) {
+    const top = next12.reduce((a, b) => b.pop > a.pop ? b : a, next12[0]);
+    T('rain', lbl(L_DROP, 'Rain chance') + '<div class="t-val">' + top.pop + '<small>%</small></div><div class="t-word">' + (top.pop < 10 ? 'Dry next 12 hours' : 'Peak at ' + esc(hC(top.t))) + '</div><div class="rainbars" aria-hidden="true">' + next12.map(h => '<i class="' + (h.pop < 10 ? 'zero' : '') + '" style="height:' + Math.max(6, h.pop) + '%"></i>').join('') + '</div><div class="scale-l"><span>' + esc(hC(next12[0].t)) + '</span><span>' + esc(hC(next12[next12.length - 1].t)) + '</span></div>');
+  } else {
+    const d = dayRow(now);
+    T('rain', lbl(L_DROP, 'Rain chance') + '<div class="t-val">' + (d ? d.pop : 0) + '<small>%</small></div><div class="t-sub">From the daily forecast.</div>');
+  }
+  if (live(w)) {
+    T('baro', lbl(L_GAUGE, 'Pressure') + '<div class="t-val">' + WX.obs.pressure.toFixed(2) + '<small>inHg</small></div>' + baroSVG(WX.obs.pressure) + '<div class="t-sub">' + esc(baroWord(WX.obs.pressure)) + ' · measured ' + esc(tC(WX.obs.t)) + '</div>');
+    const vw = WX.obs.vis >= 10 ? 'Perfectly clear' : WX.obs.vis >= 5 ? 'Clear' : WX.obs.vis >= 3 ? 'Hazy' : 'Fog';
+    T('vis', lbl(L_EYE, 'Visibility') + '<div class="t-val">' + WX.obs.vis + '<small>mi</small></div><div class="t-word">' + vw + '</div><div class="t-sub">Measured ' + esc(tC(WX.obs.t)) + ' at the Montgomery airport.</div>');
+  } else { T('baro', ''); T('vis', ''); }
+}
+function renderWeather(now) {
+  const w = nowWx(now);
+  renderHero(now, w); renderBrief(now); renderHourly(now); renderDaily(now, w); renderTiles(now, w);
+  $('wx-foot').textContent = 'Forecast from the National Weather Service, issued ' + tC(WX.issued) + ' Oct 1. Sun and moon positions are calculated live for Wetumpka.';
+  updateScene(now, w);
+}
+
+/* ================= live landscape ================= */
+const sc = { c: $('scene'), ctx: null, w: 0, h: 0, sun: { alt: -20, az: 0 }, moon: { alt: -20, az: 0 }, phase: .5, kind: 'clear', cloud: .06, stars: [], clouds: [], drops: [], layers: null, flash: 0, nextFlash: 0, bolt: null, shoot: null, nextShoot: 0, last: 0 };
+const SKY = [
+  [-18, [[3,6,16],[7,14,34],[12,22,50]]],
+  [-10, [[6,13,36],[20,32,80],[48,52,100]]],
+  [-4,  [[14,30,68],[56,70,124],[206,128,104]]],
+  [2,   [[30,76,144],[96,132,186],[246,182,128]]],
+  [10,  [[28,90,165],[62,132,202],[150,196,232]]],
+  [60,  [[22,84,162],[54,126,200],[128,184,228]]]
+];
+const CLOUD_OF = { clear: .06, partly: .3, mostly: .58, cloudy: .78, showers: .5, rain: .82, storm: .9 };
+function skyCols() {
+  const alt = sc.sun.alt; let base;
+  if (alt <= SKY[0][0]) base = SKY[0][1];
+  else if (alt >= SKY[SKY.length - 1][0]) base = SKY[SKY.length - 1][1];
+  else { let i = 1; while (alt > SKY[i][0]) i++; const a = SKY[i - 1], b = SKY[i], k = (alt - a[0]) / (b[0] - a[0]); base = a[1].map((c, j) => mix(c, b[1][j], k)); }
+  return base.map(c => { const l = c[0] * .3 + c[1] * .55 + c[2] * .15; let o = mix(c, [l * .9, l * .96, l * 1.06], sc.cloud * .72); if (sc.kind === 'storm') o = o.map(v => v * .7); return o.map(v => clamp(v, 0, 255)); });
+}
+function rng(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function pine(p, cx, b, w, h) { p.lineTo(cx - w / 2, b); p.lineTo(cx - w * .16, b - h * .34); p.lineTo(cx - w * .36, b - h * .34); p.lineTo(cx - w * .12, b - h * .64); p.lineTo(cx - w * .26, b - h * .64); p.lineTo(cx, b - h); p.lineTo(cx + w * .26, b - h * .64); p.lineTo(cx + w * .12, b - h * .64); p.lineTo(cx + w * .36, b - h * .34); p.lineTo(cx + w * .16, b - h * .34); p.lineTo(cx + w / 2, b); }
+function buildLayers(w) {
+  const far = new Path2D(), mid = new Path2D(), near = new Path2D(), D = 1200;
+  let r = rng(7); const a1 = r() * 6, a2 = r() * 6;
+  far.moveTo(-10, D);
+  for (let x = -10; x <= w + 10; x += 5) far.lineTo(x, -(20 + 15 * Math.sin(x * .0055 + a1) + 8 * Math.sin(x * .016 + a2)));
+  far.lineTo(w + 10, D); far.closePath();
+  r = rng(21); const b1 = r() * 6, b2 = r() * 6;
+  mid.moveTo(-10, D);
+  for (let x = -10; x <= w + 10; x += 3) { const base = -(9 + 8 * Math.sin(x * .0085 + b1) + 4 * Math.sin(x * .021 + b2)); mid.lineTo(x, base - Math.max(0, Math.sin(x * .42 + Math.sin(x * .05) * 2)) * 3.2); }
+  mid.lineTo(w + 10, D); mid.closePath();
+  r = rng(99);
+  near.moveTo(-30, D); near.lineTo(-30, 2);
+  let x = -24;
+  while (x < w + 24) { const tw = 7 + r() * 9, th = (13 + r() * 28) * (r() < .12 ? 1.4 : 1), b = 3 * Math.sin(x * .013) + 2; pine(near, x + tw / 2, b, tw, th); x += tw * (.5 + r() * .45); }
+  near.lineTo(w + 30, 2); near.lineTo(w + 30, D); near.closePath();
+  sc.layers = { far, mid, near };
+}
+function seedScene() {
+  const { w, h } = sc; if (!w) return;
+  if (!sc.stars.length) { const r = rng(3); sc.stars = Array.from({ length: Math.round(w * h / 3600) }, () => ({ x: r() * w, y: r() * h * .62, r: r() * 1.15 + .25, p: r() * 6.28, k: .5 + r() * .5 })); }
+  const nC = sc.cloud > .1 ? Math.round(sc.cloud * 9) + 1 : 1;
+  while (sc.clouds.length < nC) { const s = 70 + Math.random() * 110; sc.clouds.push({ x: Math.random() * (w + 400) - 200, y: 30 + Math.random() * h * .32, s, v: 3 + Math.random() * 8, z: Math.random(), blobs: Array.from({ length: 6 }, (_, i) => ({ dx: (i - 2.5) * .5 + (Math.random() - .5) * .3, dy: (Math.random() - .5) * .3 - (i === 2 || i === 3 ? .22 : 0), r: .55 + Math.random() * .45 })) }); }
+  sc.clouds.length = nC;
+  const nD = sc.kind === 'storm' ? 200 : sc.kind === 'rain' ? 150 : 0;
+  while (sc.drops.length < nD) sc.drops.push({ x: Math.random() * w, y: Math.random() * h, l: 12 + Math.random() * 14, v: 640 + Math.random() * 380 });
+  sc.drops.length = nD;
+}
+function updateScene(now, w) {
+  sc.sun = sunPos(now); sc.moon = moonPos(now); sc.phase = moonIllum(now).phase;
+  sc.kind = w.kind;
+  sc.cloud = Math.max(CLOUD_OF[w.kind] || .3, (w.sky != null ? w.sky : 40) / 100 * .9);
+  seedScene(); requestDraw();
+}
+function resizeScene() {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  sc.w = window.innerWidth; sc.h = window.innerHeight;
+  sc.c.width = Math.round(sc.w * dpr); sc.c.height = Math.round(sc.h * dpr);
+  sc.ctx = sc.c.getContext('2d'); if (!sc.ctx) return;
+  sc.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  sc.stars = []; buildLayers(sc.w); seedScene(); requestDraw();
+}
+function horizonY() {
+  const el = $('hz-' + (isWide() ? 'weather' : activeTab));
+  return el ? el.getBoundingClientRect().bottom - 4 : sc.h * .45;
+}
+const skyX = (az) => sc.w / 2 + clamp(az / 110, -1.15, 1.15) * (sc.w / 2 - 34);
+const skyY = (alt, hy) => hy - Math.sin(clamp(alt, -10, 90) * RAD) * Math.max(80, hy - 66);
+function drawScene(t) {
+  const ctx = sc.ctx; if (!ctx) return;
+  const { w, h } = sc, dt = sc.last ? Math.min(.05, (t - sc.last) / 1000) : 0; sc.last = t;
+  const hy = horizonY(), cols = skyCols(), storm = sc.kind === 'storm', skyBottom = Math.max(40, hy + 10);
+  const g = ctx.createLinearGradient(0, Math.min(0, hy - 600), 0, skyBottom);
+  g.addColorStop(0, rgb(cols[0])); g.addColorStop(.6, rgb(cols[1])); g.addColorStop(1, rgb(cols[2]));
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, Math.min(h, skyBottom));
+  const dark = clamp((-sc.sun.alt - 5) / 9, 0, 1), clear = 1 - sc.cloud;
+  if (sc.sun.alt > -16 && sc.sun.alt < 14) {
+    const k = 1 - Math.abs(sc.sun.alt + 1) / 15, sx = skyX(sc.sun.az);
+    const rg = ctx.createRadialGradient(sx, hy, 0, sx, hy, w * .9);
+    rg.addColorStop(0, rgb([255, 168, 110], (.5 * k * (.4 + .6 * clear)).toFixed(3))); rg.addColorStop(1, 'rgba(255,168,110,0)');
+    ctx.fillStyle = rg; ctx.fillRect(0, 0, w, Math.min(h, skyBottom));
+  }
+  if (dark * clear > .02) {
+    ctx.fillStyle = '#fff';
+    for (const s of sc.stars) { if (s.y > hy - 20) continue; ctx.globalAlpha = dark * clear * s.k * (RM ? .8 : (.45 + .55 * Math.abs(Math.sin(t / 1500 + s.p)))); ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 6.283); ctx.fill(); }
+    ctx.globalAlpha = 1;
+    if (!RM && dark > .6 && clear > .5) {
+      if (!sc.nextShoot) sc.nextShoot = t + 6000 + Math.random() * 14000;
+      if (!sc.shoot && t > sc.nextShoot) { sc.shoot = { x: w * (.15 + Math.random() * .6), y: 40 + Math.random() * Math.max(60, hy * .35), vx: 520 + Math.random() * 300, vy: 170 + Math.random() * 120, life: 0 }; sc.nextShoot = t + 16000 + Math.random() * 22000; }
+      if (sc.shoot) {
+        const s = sc.shoot; s.life += dt; s.x += s.vx * dt; s.y += s.vy * dt;
+        const a = Math.sin(Math.min(1, s.life / .8) * Math.PI);
+        const lg = ctx.createLinearGradient(s.x, s.y, s.x - s.vx * .16, s.y - s.vy * .16);
+        lg.addColorStop(0, 'rgba(255,255,255,' + (.9 * a).toFixed(3) + ')'); lg.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.strokeStyle = lg; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.x - s.vx * .16, s.y - s.vy * .16); ctx.stroke();
+        if (s.life > .8) sc.shoot = null;
+      }
+    }
+  }
+  if (sc.moon.alt > -3 && hy > 240) {
+    const mx = skyX(sc.moon.az), my = skyY(sc.moon.alt, hy), r = 15, vis = (.35 + .65 * dark) * (1 - sc.cloud * .6);
+    const mg = ctx.createRadialGradient(mx, my, 0, mx, my, 90);
+    mg.addColorStop(0, 'rgba(220,230,255,' + (.28 * vis).toFixed(3) + ')'); mg.addColorStop(1, 'rgba(220,230,255,0)');
+    ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(mx, my, 90, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = clamp(vis, 0, 1);
+    ctx.fillStyle = 'rgba(190,205,240,.16)'; ctx.beginPath(); ctx.arc(mx, my, r, 0, 6.283); ctx.fill();
+    const lit = ctx.createLinearGradient(mx - r, my - r, mx + r, my + r); lit.addColorStop(0, '#FFFFFF'); lit.addColorStop(1, '#C9D4EC');
+    ctx.fillStyle = lit; ctx.fill(new Path2D(moonPath(mx, my, r, sc.phase)));
+    ctx.globalAlpha = 1;
+  }
+  if (sc.sun.alt > -3 && hy > 240) {
+    const sx = skyX(sc.sun.az), sy = skyY(sc.sun.alt, hy), low = clamp(1 - sc.sun.alt / 18, 0, 1), vis = 1 - sc.cloud * .75;
+    const warm = mix([255, 244, 214], [255, 170, 100], low);
+    const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, 170);
+    sg.addColorStop(0, rgb(warm, (.65 * vis).toFixed(3))); sg.addColorStop(.25, rgb(warm, (.22 * vis).toFixed(3))); sg.addColorStop(1, rgb(warm, 0));
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(sx, sy, 170, 0, 6.283); ctx.fill();
+    ctx.fillStyle = rgb(mix([255, 252, 236], [255, 214, 150], low), Math.max(.25, vis).toFixed(3)); ctx.beginPath(); ctx.arc(sx, sy, 15, 0, 6.283); ctx.fill();
+  }
+  const dayK = clamp((sc.sun.alt + 6) / 12, 0, 1), warmK = sc.sun.alt > -8 && sc.sun.alt < 10 ? (1 - Math.abs(sc.sun.alt - 1) / 9) * .5 : 0;
+  const cc = mix(mix([120, 134, 170], [255, 255, 255], dayK), [255, 176, 140], clamp(warmK, 0, .5));
+  const ca = (storm ? .2 : .1 + .1 * dayK) * (.55 + sc.cloud);
+  for (const cl of sc.clouds) {
+    cl.x += cl.v * (.6 + cl.z * .6) * dt;
+    if (cl.x - cl.s * 2.4 > w) cl.x = -cl.s * 2.4;
+    const cy = Math.min(cl.y, hy - 40 - cl.s * .3);
+    for (const b of cl.blobs) {
+      const gx = cl.x + b.dx * cl.s, gy = cy + b.dy * cl.s, rr = b.r * cl.s;
+      const rg = ctx.createRadialGradient(gx, gy, 0, gx, gy, rr);
+      rg.addColorStop(0, rgb(cc, ca.toFixed(3))); rg.addColorStop(1, rgb(cc, 0));
+      ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(gx, gy, rr, 0, 6.283); ctx.fill();
+    }
+  }
+  if (storm && !RM) {
+    if (!sc.nextFlash) sc.nextFlash = t + 4000 + Math.random() * 8000;
+    if (t > sc.nextFlash) {
+      sc.flash = 1; sc.nextFlash = t + 6000 + Math.random() * 11000;
+      const pts = []; let x = w * (.2 + Math.random() * .6), y = 0;
+      while (y < hy - 30) { pts.push([x, y]); x += (Math.random() - .5) * 46; y += 18 + Math.random() * 26; }
+      pts.push([x, hy - 20]); sc.bolt = pts;
+    }
+    if (sc.flash > 0) {
+      ctx.fillStyle = 'rgba(225,232,255,' + (sc.flash * .3).toFixed(3) + ')'; ctx.fillRect(0, 0, w, Math.min(h, skyBottom));
+      if (sc.bolt && sc.flash > .45) { ctx.strokeStyle = 'rgba(255,255,255,' + sc.flash.toFixed(3) + ')'; ctx.lineWidth = 2; ctx.shadowColor = '#cfd8ff'; ctx.shadowBlur = 14; ctx.beginPath(); sc.bolt.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke(); ctx.shadowBlur = 0; }
+      sc.flash = Math.max(0, sc.flash - dt * 2.6);
+    }
+  }
+  const y0 = window.scrollY || 0;
+  const farC = mix(cols[2], [14, 22, 44], .55 + dark * .2), midC = mix(cols[2], [8, 13, 28], .76), nearC = mix(cols[2], [4, 7, 15], .92);
+  const fy = hy - 26 + Math.min(y0 * .14, 60), my2 = hy - 12 + Math.min(y0 * .06, 30);
+  if (sc.layers && hy > -80) {
+    const hz = ctx.createLinearGradient(0, fy - 70, 0, fy);
+    hz.addColorStop(0, rgb(cols[2], 0)); hz.addColorStop(1, rgb(mix(cols[2], [255, 255, 255], .08), .45));
+    ctx.fillStyle = hz; ctx.fillRect(0, fy - 70, w, 70);
+    ctx.save(); ctx.translate(0, fy); ctx.fillStyle = rgb(farC); ctx.fill(sc.layers.far); ctx.restore();
+    ctx.save(); ctx.translate(0, my2); ctx.fillStyle = rgb(midC); ctx.fill(sc.layers.mid); ctx.restore();
+    ctx.save(); ctx.translate(0, hy); ctx.fillStyle = rgb(nearC); ctx.fill(sc.layers.near); ctx.restore();
+  }
+  const gy = Math.max(0, hy + 2);
+  if (gy < h) {
+    const gg = ctx.createLinearGradient(0, gy, 0, h);
+    gg.addColorStop(0, rgb(nearC)); gg.addColorStop(clamp(260 / Math.max(1, h - gy), 0, 1), rgb(mix(nearC, [3, 5, 11], .6))); gg.addColorStop(1, 'rgb(3,5,11)');
+    ctx.fillStyle = gg; ctx.fillRect(0, gy, w, h - gy);
+  }
+  if (sc.drops.length) {
+    ctx.strokeStyle = 'rgba(176,212,242,.32)'; ctx.lineWidth = 1.1; ctx.beginPath();
+    for (const d of sc.drops) { d.y += d.v * dt; d.x -= d.v * dt * .12; if (d.y > h) { d.y = -d.l; d.x = Math.random() * (w + 60); } ctx.moveTo(d.x, d.y); ctx.lineTo(d.x - d.l * .12, d.y + d.l); }
+    ctx.stroke();
+  }
+}
+let drawQueued = false;
+function requestDraw() { if (!RM || drawQueued) return; drawQueued = true; requestAnimationFrame((t) => { drawQueued = false; drawScene(t); }); }
+function loop(t) { if (!document.hidden) drawScene(t); requestAnimationFrame(loop); }
+
+/* ================= state & saving ================= */
+const LS = {
+  get(k) { try { const v = localStorage.getItem('daybreak:' + k); return v ? JSON.parse(v) : null; } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem('daybreak:' + k, JSON.stringify(v)); } catch (e) {} }
+};
+function mergeProfile(p) {
+  p = p || {};
+  const g = Object.assign({}, DEF_PROFILE.goals, p.goals || {}), r = Object.assign({}, DEF_PROFILE.reminders, p.reminders || {});
+  const game = p.game && Number.isFinite(+p.game.endsAt) ? { startedAt: +p.game.startedAt || (+p.game.endsAt - GAME_MS), endsAt: +p.game.endsAt } : null;
+  return { goals: { kcal: +g.kcal || 2000, steps: +g.steps || 8000, water: +g.water || 8 }, reminders: { waterOn: !!r.waterOn, waterMins: +r.waterMins || 60, snackOn: !!r.snackOn, snackMins: +r.snackMins || 180, startHour: Number.isFinite(+r.startHour) ? +r.startHour : 8, endHour: Number.isFinite(+r.endHour) ? +r.endHour : 21 }, game };
+}
+function normDay(d, key) {
+  d = d || {};
+  return {
+    date: key,
+    foods: Array.isArray(d.foods) ? d.foods.filter(f => f && typeof f.name === 'string' && Number.isFinite(+f.kcal)).map(f => ({ id: String(f.id || rid()), name: String(f.name).slice(0, 60), kcal: Math.round(+f.kcal), meal: MEALS.includes(f.meal) ? f.meal : 'Snack', t: +f.t || Date.now() })) : [],
+    steps: Math.max(0, Math.round(+d.steps || 0)),
+    water: Math.max(0, Math.round(+d.water || 0)),
+    games: Array.isArray(d.games) ? d.games.filter(g => g && Number.isFinite(+g.start) && Number.isFinite(+g.end)).map(g => ({ start: +g.start, end: +g.end, how: g.how === 'early' ? 'early' : 'alarm' })) : []
+  };
+}
+const state = { profile: mergeProfile(LS.get('profile')), dayKey: dayName(localKey()), day: null, history: {} };
+state.day = normDay(LS.get(state.dayKey), localKey());
+
+let db = null, uid = null;
+const unsubs = {}, timers = {}, pending = {}, chains = {}, touched = new Set(), seen = new Set();
+const docRef = (name) => db.doc('data/users/' + uid + '/' + name);
+function save(name) {
+  touched.add(name);
+  const data = name === 'profile' ? state.profile : (name === state.dayKey ? state.day : null);
+  if (!data) return;
+  LS.set(name, data);
+  if (!db) return;
+  clearTimeout(timers[name]);
+  timers[name] = setTimeout(() => {
+    timers[name] = null;
+    const body = clone(name === 'profile' ? state.profile : data);
+    pending[name] = (pending[name] || 0) + 1;
+    setSync('saving');
+    chains[name] = (chains[name] || Promise.resolve()).then(() => docRef(name).set(body)).then(() => setSync('ok')).catch(dbFail).finally(() => { pending[name]--; });
+  }, 450);
+}
+const busy = (name) => (pending[name] || 0) > 0 || !!timers[name];
+function setSync(s) {
+  const el = $('sync'), tx = $('sync-text');
+  el.classList.remove('ok', 'bad');
+  if (s === 'ok') { el.classList.add('ok'); tx.textContent = 'Synced to your Claude account'; }
+  else if (s === 'saving') { el.classList.add('ok'); tx.textContent = 'Saving…'; }
+  else if (s === 'bad') { el.classList.add('bad'); tx.textContent = 'Couldn’t reach your account. Saving in this browser for now.'; }
+  else if (s === 'full') { el.classList.add('bad'); tx.textContent = 'Storage is full. Older days need clearing before new ones save.'; }
+  else tx.textContent = 'Saved on this phone';
+}
+function dbFail(e) {
+  const code = e && e.code;
+  if (code === 'unavailable' || code === 'resource_exhausted') return setSync('bad');
+  if (code === 'quota_exceeded') return setSync('full');
+  db = null; setSync('bad');
+}
+function subscribe(name, apply) {
+  try { unsubs[name] && unsubs[name](); } catch (e) {}
+  unsubs[name] = docRef(name).onSnapshot((snap) => {
+    const first = !seen.has(name); seen.add(name);
+    if (busy(name)) return;
+    if (first && touched.has(name)) { save(name); return; }
+    if (snap.exists) { const data = clone(snap.data()); LS.set(name, data); apply(data); }
+    else if (first && LS.get(name)) save(name);
+  }, dbFail);
+}
+function applyProfile(p) {
+  const hadGame = !!state.profile.game;
+  state.profile = mergeProfile(p);
+  if (hadGame && !state.profile.game && alarmOn) stopAlarm(false);
+  if (!state.profile.game) keepAwake(false); else if (!hadGame) keepAwake(true);
+  fillControls(); renderHealth(); renderGameState();
+}
+function applyDay(name, d) { if (name !== state.dayKey) return; state.day = normDay(d, state.dayKey.slice(4)); renderHealth(); renderPlay(); }
+async function connect() {
+  const C = window.claude;
+  if (!C || typeof C.use !== 'function') { setSync('local'); return; }
+  try {
+    const [dbx, user] = await Promise.all([C.use('db'), C.use('user')]);
+    if (!dbx || !user) { setSync('local'); return; }
+    const id = await user.id();
+    if (!id) { setSync('local'); return; }
+    db = dbx; uid = id; setSync('ok');
+    subscribe('profile', applyProfile);
+    const k = state.dayKey; subscribe(k, (d) => applyDay(k, d));
+    loadHistory();
+  } catch (e) { setSync('local'); }
+}
+function last7() { const out = []; for (let i = 6; i >= 0; i--) { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - i); out.push(localKey(d)); } return out; }
+const dow = (k) => { const p = k.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2], 12).getDay(); };
+const dayData = (k) => dayName(k) === state.dayKey ? state.day : state.history[dayName(k)];
+async function loadHistory() {
+  for (const k of last7().slice(0, 6)) {
+    const n = dayName(k);
+    if (db) { try { const s = await docRef(n).get(); if (s.exists) { state.history[n] = normDay(clone(s.data()), k); LS.set(n, s.data()); } } catch (e) {} }
+  }
+  renderWeek(); renderPlay();
+}
+function rollDay() {
+  const k = dayName(localKey());
+  if (k === state.dayKey) return;
+  state.history[state.dayKey] = state.day;
+  try { unsubs[state.dayKey] && unsubs[state.dayKey](); } catch (e) {}
+  state.dayKey = k; state.day = normDay(LS.get(k), localKey());
+  if (db) subscribe(k, (d) => applyDay(k, d));
+  renderHealth(); renderPlay();
+}
+
+/* ================= health ================= */
+const waterGoal = () => state.profile.goals.water + heatBonus(Date.now());
+const eaten = () => state.day.foods.reduce((a, f) => a + f.kcal, 0);
+function buildRings() {
+  const R = [86, 64, 42], keys = ['move', 'fuel', 'water'], tracks = ['rgba(255,110,156,.16)', 'rgba(166,227,107,.16)', 'rgba(88,210,255,.16)'];
+  let s = '<svg class="rings-svg" viewBox="0 0 200 200" role="img" aria-label="Progress rings for steps, calories and water">';
+  keys.forEach((k, i) => {
+    const r = R[i], c = 2 * Math.PI * r;
+    s += '<circle class="ring-track" cx="100" cy="100" r="' + r + '" stroke="' + tracks[i] + '" stroke-width="18"/>';
+    s += '<circle id="ring-' + k + '" cx="100" cy="100" r="' + r + '" fill="none" stroke="url(#g-' + k + ')" stroke-width="18" stroke-linecap="round" stroke-dasharray="' + c.toFixed(2) + '" stroke-dashoffset="' + c.toFixed(2) + '" transform="rotate(-90 100 100)" style="transition:stroke-dashoffset 1.2s cubic-bezier(.2,.8,.2,1),opacity .3s" opacity="0" data-c="' + c.toFixed(3) + '"/>';
+  });
+  $('rings').innerHTML = s + '</svg>';
+}
+function setRing(k, p) { const el = $('ring-' + k), c = +el.dataset.c, f = clamp(p, 0, 1); el.style.strokeDashoffset = (c * (1 - f)).toFixed(2); el.setAttribute('opacity', f > 0 ? '1' : '0'); }
+function renderToday() {
+  const g = state.profile.goals, d = state.day, e = eaten(), wg = waterGoal(), burned = Math.round(d.steps * STEP_KCAL);
+  setRing('move', d.steps / g.steps); setRing('fuel', e / g.kcal); setRing('water', d.water / wg);
+  $('lg-move').innerHTML = num(d.steps) + '<small>/ ' + num(g.steps) + '</small>';
+  $('lg-fuel').innerHTML = num(e) + '<small>/ ' + num(g.kcal) + ' kcal</small>';
+  $('lg-water').innerHTML = d.water + '<small>/ ' + wg + ' cups</small>';
+  $('net-burn').textContent = num(burned) + ' kcal';
+  $('net-net').textContent = num(e - burned) + ' kcal';
+}
+const MEAL_A = { Breakfast: 1, Lunch: .74, Dinner: .5, Snack: .3 };
+function renderFood() {
+  const d = state.day, g = state.profile.goals, e = eaten();
+  $('food-n').textContent = num(e);
+  $('food-s').textContent = 'of ' + num(g.kcal) + ' kcal · ' + (e <= g.kcal ? num(g.kcal - e) + ' left' : num(e - g.kcal) + ' over');
+  $('food-meta').textContent = 'Goal ' + num(g.kcal);
+  const by = MEALS.map(m => d.foods.filter(f => f.meal === m).reduce((a, f) => a + f.kcal, 0));
+  const total = Math.max(g.kcal, e);
+  $('mealbar').innerHTML = MEALS.map((m, i) => by[i] ? '<i style="flex-grow:' + by[i] + ';background:rgba(166,227,107,' + MEAL_A[m] + ')"></i>' : '').join('') + (total > e ? '<i style="flex-grow:' + (total - e) + ';background:transparent"></i>' : '');
+  $('meal-legend').innerHTML = MEALS.map((m, i) => '<span><i style="opacity:' + MEAL_A[m] + '"></i>' + m + (m === 'Snack' ? 's' : '') + ' ' + num(by[i]) + '</span>').join('');
+  if (!d.foods.length) { $('food-list').innerHTML = '<p class="empty">Nothing logged yet today. Add a meal or tap a snack.</p>'; return; }
+  $('food-list').innerHTML = MEALS.map(m => {
+    const list = d.foods.filter(f => f.meal === m).sort((a, b) => a.t - b.t);
+    if (!list.length) return '';
+    return '<div><div class="meal-h"><span>' + m + (m === 'Snack' ? 's' : '') + '</span><span>' + num(list.reduce((a, f) => a + f.kcal, 0)) + ' kcal</span></div>' + list.map(f =>
+      '<div class="food-item"><div><div class="fi-n">' + esc(f.name) + '</div><div class="fi-t">' + esc(tLocal(f.t)) + '</div></div><div class="fi-k">' + num(f.kcal) + '</div><button class="x" type="button" data-del="' + esc(f.id) + '" aria-label="Remove ' + esc(f.name) + '">×</button></div>').join('') + '</div>';
+  }).join('');
+}
+function renderSteps() {
+  const d = state.day, g = state.profile.goals;
+  $('steps-n').textContent = num(d.steps);
+  $('steps-meta').textContent = d.steps >= g.steps ? 'Goal reached' : num(g.steps - d.steps) + ' to go';
+  $('steps-s').textContent = (d.steps / STEPS_PER_MILE).toFixed(1) + ' mi · ≈ ' + num(d.steps * STEP_KCAL) + ' kcal burned';
+  $('steps-prog').style.width = (clamp(d.steps / g.steps, 0, 1) * 100).toFixed(1) + '%';
+  const now = Date.now(), bw = bestWalk(now);
+  if (bw) {
+    const same = ymdC(bw.t) === ymdC(now);
+    setHTML($('walk'), I_WALK + '<div><b>Best walk: ' + (same ? '' : 'tomorrow ') + esc(hC(bw.t)) + '.</b> ' + feels(bw) + '°' + (bw.pop < 10 ? ' and dry' : ', ' + bw.pop + '% rain') + ' in today’s NWS forecast.</div>');
+    $('walk').hidden = false;
+  } else $('walk').hidden = true;
+  renderWeek();
+}
+function barChart(vals, labels, goal, goalLabel, colorToday, colorPast, fmtV) {
+  const W = 320, base = 100, top = 20, max = Math.max(goal ? goal * 1.15 : 1, ...vals, 1), bw = 30, gap = (W - 7 * bw) / 6;
+  const y = (v) => base - (v / max) * (base - top);
+  let s = '<svg viewBox="0 0 ' + W + ' 124" role="img" aria-label="Last 7 days">';
+  vals.forEach((v, i) => {
+    const x = i * (bw + gap), today = i === 6, hgt = v > 0 ? Math.max(5, base - y(v)) : 0;
+    s += '<rect x="' + x.toFixed(1) + '" y="' + top + '" width="' + bw + '" height="' + (base - top) + '" rx="8" fill="rgba(255,255,255,.05)"/>';
+    if (v > 0) {
+      s += '<rect x="' + x.toFixed(1) + '" y="' + (base - hgt).toFixed(1) + '" width="' + bw + '" height="' + hgt.toFixed(1) + '" rx="8" fill="' + (today ? colorToday : colorPast) + '"/>';
+      s += '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (base - hgt - 5).toFixed(1) + '" text-anchor="middle" class="s-time" style="font-size:10px">' + fmtV(v) + '</text>';
+    }
+    s += '<text x="' + (x + bw / 2).toFixed(1) + '" y="118" text-anchor="middle" class="s-time"' + (today ? ' style="fill:#F5F7FC"' : '') + '>' + labels[i] + '</text>';
+  });
+  if (goal) s += '<line x1="0" x2="' + W + '" y1="' + y(goal).toFixed(1) + '" y2="' + y(goal).toFixed(1) + '" stroke="rgba(245,247,252,.4)" stroke-dasharray="3 5"/><text x="' + W + '" y="' + (y(goal) - 5).toFixed(1) + '" text-anchor="end" class="s-time" style="font-size:9.5px">' + esc(goalLabel) + '</text>';
+  return s + '</svg>';
+}
+const weekLabels = () => last7().map((k, i) => i === 6 ? 'Today' : 'SMTWTFS'.charAt(dow(k)));
+function renderWeek() {
+  const vals = last7().map(k => (dayData(k) || {}).steps || 0);
+  setHTML($('steps-week'), barChart(vals, weekLabels(), state.profile.goals.steps, 'Goal', 'url(#g-move)', 'rgba(255,110,156,.42)', (v) => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : String(v)));
+}
+function renderWater() {
+  const d = state.day, goal = waterGoal(), f = clamp(d.water / goal, 0, 1);
+  $('water-level').style.transform = 'translateY(' + (162 - f * 148).toFixed(1) + 'px)';
+  $('water-n').innerHTML = d.water + '<small>/ ' + goal + '</small>';
+  $('water-s').textContent = 'cups · ' + d.water * 8 + ' of ' + goal * 8 + ' oz';
+  $('water-meta').textContent = 'Goal ' + goal + ' cups';
+  let dots = ''; const n = Math.max(goal, d.water);
+  for (let i = 0; i < n; i++) dots += '<button class="dot-btn' + (i < d.water ? ' on' : '') + '" type="button" data-cup="' + i + '" aria-label="' + (i < d.water ? 'Cup ' + (i + 1) + ' done' : 'Set to ' + (i + 1) + ' cups') + '"></button>';
+  setHTML($('dots'), dots);
+  const b = heatBonus(Date.now());
+  $('water-note').textContent = (b ? 'A forecast high of ' + todayHigh(Date.now()) + '° adds ' + b + ' cup' + (b > 1 ? 's' : '') + ' to today’s goal. ' : '') + (d.water >= goal ? 'Goal reached. Nice work.' : (goal - d.water) + ' more to go.');
+}
+function renderRemSummary() {
+  const r = state.profile.reminders;
+  const lab = (on, t, mins) => !on ? 'Off' : 'Every ' + (mins >= 60 ? (mins / 60) + ' hr' : mins + ' min') + ' · next ' + tLocal(t);
+  $('rem-water-next').textContent = lab(r.waterOn, rem.water, r.waterMins);
+  $('rem-snack-next').textContent = lab(r.snackOn, rem.snack, r.snackMins);
+}
+function renderHealth() {
+  $('h-date').textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+  renderToday(); renderFood(); renderSteps(); renderWater(); renderRemSummary();
+}
+
+/* ================= toast & undo ================= */
+let toastTimer = 0, undoFn = null;
+function toast(msg, undo) {
+  $('toast-t').textContent = msg; undoFn = undo || null; $('toast-undo').hidden = !undo;
+  const el = $('toast'); el.hidden = true; void el.offsetWidth; el.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; undoFn = null; }, 4200);
+}
+$('toast-undo').addEventListener('click', () => { const f = undoFn; undoFn = null; $('toast').hidden = true; if (f) { f(); haptic(10); } });
+
+/* ================= health actions ================= */
+function defaultMeal() { const h = new Date().getHours() + new Date().getMinutes() / 60; return h < 10.5 ? 'Breakfast' : h < 15 ? 'Lunch' : h < 17 ? 'Snack' : h < 21 ? 'Dinner' : 'Snack'; }
+let mealSel = defaultMeal();
+function renderMealSeg() { $('meal-seg').innerHTML = MEALS.map(m => '<button type="button" role="radio" aria-checked="' + (m === mealSel) + '" data-meal="' + m + '"'+'>' + m + '</button>').join(''); }
+$('meal-seg').addEventListener('click', (e) => { const b = e.target.closest('[data-meal]'); if (!b) return; mealSel = b.dataset.meal; renderMealSeg(); haptic(); });
+function afterDay() { save(state.dayKey); renderToday(); renderFood(); renderSteps(); renderWater(); }
+function addFood(name, kcal, meal) {
+  const item = { id: rid(), name: name.slice(0, 60), kcal: Math.round(kcal), meal, t: Date.now() };
+  state.day.foods.push(item); afterDay(); haptic(12);
+  toast('Logged ' + item.name + ' · ' + num(item.kcal) + ' kcal', () => { state.day.foods = state.day.foods.filter(f => f.id !== item.id); afterDay(); });
+}
+function showErr(id, msg) { const el = $(id); if (msg) { el.textContent = msg; el.hidden = false; } else el.hidden = true; }
+$('food-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const name = $('food-name').value.trim(), raw = $('food-kcal').value, kcal = Number(raw);
+  if (!name) return showErr('food-err', 'Type what you ate, like “turkey sandwich.”');
+  if (raw === '' || !Number.isFinite(kcal) || kcal < 1 || kcal > 5000) return showErr('food-err', 'Enter calories as a number between 1 and 5,000.');
+  showErr('food-err', '');
+  addFood(name, kcal, mealSel);
+  $('food-name').value = ''; $('food-kcal').value = '';
+});
+$('snack-chips').innerHTML = SNACKS.map((s, i) => '<button class="chip" type="button" data-snack="' + i + '" title="' + esc(s.note) + '">' + esc(s.name) + '<em>' + s.kcal + '</em></button>').join('');
+$('snack-chips').addEventListener('click', (e) => { const b = e.target.closest('[data-snack]'); if (!b) return; const s = SNACKS[+b.dataset.snack]; addFood(s.name, s.kcal, 'Snack'); });
+$('food-list').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-del]'); if (!b) return;
+  const idx = state.day.foods.findIndex(f => f.id === b.dataset.del); if (idx < 0) return;
+  const item = state.day.foods[idx]; state.day.foods.splice(idx, 1); afterDay(); haptic(10);
+  toast('Removed ' + item.name, () => { state.day.foods.push(item); afterDay(); });
+});
+function setSteps(n, msg) {
+  const prev = state.day.steps; state.day.steps = clamp(Math.round(n), 0, 200000); afterDay();
+  if (msg) toast(msg, () => { state.day.steps = prev; afterDay(); });
+}
+document.querySelectorAll('[data-steps]').forEach(b => b.addEventListener('click', () => { const n = +b.dataset.steps; haptic(); setSteps(state.day.steps + n, '+' + num(n) + ' steps'); }));
+function stepsInput() { const raw = $('steps-in').value, v = Number(raw); if (raw === '' || !Number.isFinite(v) || v < 0 || v > 100000) { showErr('steps-err', 'Enter a step count between 0 and 100,000.'); return null; } showErr('steps-err', ''); return Math.round(v); }
+$('steps-form').addEventListener('submit', (e) => { e.preventDefault(); const v = stepsInput(); if (v == null) return; setSteps(state.day.steps + v, '+' + num(v) + ' steps'); $('steps-in').value = ''; });
+$('steps-set').addEventListener('click', () => { const v = stepsInput(); if (v == null) return; setSteps(v, 'Steps set to ' + num(v)); $('steps-in').value = ''; });
+
+const motion = { on: false, lp: 9.81, above: false, last: 0, got: false, timer: 0, flush: 0 };
+function onMotion(e) {
+  const a = e.accelerationIncludingGravity; if (!a || a.x == null) return;
+  motion.got = true;
+  motion.lp = motion.lp * .8 + Math.hypot(a.x, a.y, a.z) * .2;
+  const t = performance.now();
+  if (!motion.above && motion.lp > 11 && t - motion.last > 320) {
+    motion.above = true; motion.last = t; state.day.steps++;
+    $('steps-n').textContent = num(state.day.steps);
+    clearTimeout(motion.flush); motion.flush = setTimeout(afterDay, 800);
+  } else if (motion.above && motion.lp < 10.2) motion.above = false;
+}
+function stopMotion(msg) {
+  motion.on = false; clearTimeout(motion.timer);
+  window.removeEventListener('devicemotion', onMotion);
+  $('motion-btn').querySelector('span').textContent = 'Count with motion sensor'; $('motion-btn').classList.remove('motion-on');
+  const n = $('motion-note'); if (msg) { n.textContent = msg; n.hidden = false; } else n.hidden = true;
+}
+$('motion-btn').addEventListener('click', async () => {
+  if (motion.on) return stopMotion('');
+  const fail = 'Your phone isn’t sharing its motion sensor with this page. Use the buttons, or copy today’s count from your phone’s health app with “Set total.”';
+  try {
+    if (typeof DeviceMotionEvent === 'undefined') throw new Error('none');
+    if (typeof DeviceMotionEvent.requestPermission === 'function') { const r = await DeviceMotionEvent.requestPermission(); if (r !== 'granted') throw new Error('denied'); }
+  } catch (err) { return stopMotion(fail); }
+  motion.on = true; motion.got = false;
+  window.addEventListener('devicemotion', onMotion);
+  $('motion-btn').querySelector('span').textContent = 'Stop counting'; $('motion-btn').classList.add('motion-on');
+  const n = $('motion-note'); n.textContent = 'Counting steps while this screen stays open. Keep your phone in your hand or pocket.'; n.hidden = false;
+  motion.timer = setTimeout(() => { if (!motion.got) stopMotion(fail); }, 3000);
+});
+function setWater(n, msg) {
+  const prev = state.day.water; state.day.water = clamp(n, 0, 40); afterDay(); haptic(12);
+  if (msg) toast(msg, () => { state.day.water = prev; afterDay(); });
+}
+const addCup = () => setWater(state.day.water + 1, 'Cup logged · ' + (state.day.water + 1) + ' of ' + waterGoal());
+$('water-plus').addEventListener('click', addCup);
+$('water-minus').addEventListener('click', () => { if (state.day.water > 0) setWater(state.day.water - 1, 'Removed a cup'); });
+$('glass').addEventListener('click', addCup);
+$('glass').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); addCup(); } });
+$('dots').addEventListener('click', (e) => { const b = e.target.closest('[data-cup]'); if (!b) return; const i = +b.dataset.cup; setWater(state.day.water === i + 1 ? i : i + 1); });
+
+/* ================= settings sheet ================= */
+const W_INT = [[30, '30m'], [45, '45m'], [60, '1h'], [90, '1.5h'], [120, '2h']], S_INT = [[120, '2 hr'], [180, '3 hr'], [240, '4 hr']];
+for (let h = 4; h <= 13; h++) $('rem-start').insertAdjacentHTML('beforeend', '<option value="' + h + '">' + (h % 12 || 12) + (h < 12 ? ' AM' : ' PM') + '</option>');
+for (let h = 16; h <= 24; h++) $('rem-end').insertAdjacentHTML('beforeend', '<option value="' + h + '">' + (h === 24 ? '12 AM' : (h % 12 || 12) + ' PM') + '</option>');
+function fillControls() {
+  const r = state.profile.reminders, g = state.profile.goals;
+  $('rem-water-on').checked = r.waterOn; $('rem-snack-on').checked = r.snackOn;
+  $('seg-water').innerHTML = W_INT.map(([v, l]) => '<button type="button" role="radio" aria-checked="' + (v === r.waterMins) + '" data-v="' + v + '">' + l + '</button>').join('');
+  $('seg-snack').innerHTML = S_INT.map(([v, l]) => '<button type="button" role="radio" aria-checked="' + (v === r.snackMins) + '" data-v="' + v + '">' + l + '</button>').join('');
+  if (document.activeElement !== $('rem-start')) $('rem-start').value = String(r.startHour);
+  if (document.activeElement !== $('rem-end')) $('rem-end').value = String(r.endHour);
+  $('out-steps').textContent = num(g.steps); $('out-kcal').textContent = num(g.kcal); $('out-water').textContent = g.water;
+}
+function remChanged(kind) {
+  const r = state.profile.reminders, now = Date.now();
+  if (kind === 'water' || kind === 'hours') rem.water = nextActive(now + r.waterMins * 60000);
+  if (kind === 'snack' || kind === 'hours') rem.snack = nextActive(now + r.snackMins * 60000);
+  LS.set('rem', rem); save('profile'); renderRemSummary(); fillControls();
+}
+$('rem-water-on').addEventListener('change', (e) => { state.profile.reminders.waterOn = e.target.checked; haptic(); remChanged('water'); });
+$('rem-snack-on').addEventListener('change', (e) => { state.profile.reminders.snackOn = e.target.checked; haptic(); remChanged('snack'); });
+$('seg-water').addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (!b) return; state.profile.reminders.waterMins = +b.dataset.v; haptic(); remChanged('water'); });
+$('seg-snack').addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (!b) return; state.profile.reminders.snackMins = +b.dataset.v; haptic(); remChanged('snack'); });
+['rem-start', 'rem-end'].forEach(id => $(id).addEventListener('change', () => { const r = state.profile.reminders; r.startHour = +$('rem-start').value; r.endHour = Math.max(+$('rem-end').value, r.startHour + 1); remChanged('hours'); }));
+document.querySelectorAll('.stp').forEach(el => el.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-d]'); if (!b) return;
+  const k = el.dataset.key, g = state.profile.goals;
+  g[k] = clamp(g[k] + +el.dataset.step * +b.dataset.d, +el.dataset.min, +el.dataset.max);
+  haptic(); fillControls(); save('profile'); renderHealth();
+}));
+let sheetReturn = null;
+function openSheet() { sheetReturn = document.activeElement; fillControls(); $('sheet').hidden = false; setTimeout(() => $('sheet-done').focus(), 60); }
+function closeSheet() { if ($('sheet').hidden) return; $('sheet').hidden = true; if (sheetReturn && sheetReturn.focus) sheetReturn.focus(); }
+$('open-sheet').addEventListener('click', openSheet);
+$('open-sheet-2').addEventListener('click', openSheet);
+$('sheet-done').addEventListener('click', closeSheet);
+$('sheet-bg').addEventListener('click', closeSheet);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
+
+/* ================= reminders ================= */
+const rem = { water: 0, snack: 0 };
+function inActive(t) { const r = state.profile.reminders, d = new Date(t), h = d.getHours() + d.getMinutes() / 60; return h >= r.startHour && h < r.endHour; }
+function nextActive(t) { if (inActive(t)) return t; const r = state.profile.reminders, s = new Date(t); s.setHours(r.startHour, 0, 0, 0); if (s.getTime() <= t) s.setDate(s.getDate() + 1); return s.getTime(); }
+function initReminders() {
+  const saved = LS.get('rem') || {}, now = Date.now(), r = state.profile.reminders;
+  rem.water = saved.water > now ? saved.water : nextActive(now + r.waterMins * 60000);
+  rem.snack = saved.snack > now ? saved.snack : nextActive(now + r.snackMins * 60000);
+}
+let snackIdx = Math.floor(Math.random() * SNACKS.length), bannerKind = null;
+const queue = [];
+const CUP_ICON = '<svg viewBox="0 0 44 44" aria-hidden="true"><rect width="44" height="44" rx="13" fill="rgba(88,210,255,.14)"/><path d="M22 8s-9 9.6-9 15.4a9 9 0 0 0 18 0C31 17.6 22 8 22 8z" fill="url(#g-water-v)"/><path d="M17.6 24.2a4.6 4.6 0 0 0 3.4 3.8" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" opacity=".75"/></svg>';
+const SNACK_ICON = '<svg viewBox="0 0 44 44" aria-hidden="true"><rect width="44" height="44" rx="13" fill="rgba(166,227,107,.14)"/><path d="M22 15c-3.4-3.2-11-2.7-11 5.4C11 26.6 15.9 32 19 32c1.7 0 2-.9 3-.9s1.3.9 3 .9c3.1 0 8-5.4 8-11.6C33 12.3 25.4 11.8 22 15z" fill="url(#g-fuel)"/><path d="M22 15c0-3 1.4-5 4-6" fill="none" stroke="#F5F7FC" stroke-width="1.8" stroke-linecap="round"/></svg>';
+function snackText() { const s = SNACKS[snackIdx % SNACKS.length]; return 'Try ' + s.name.toLowerCase() + ' (' + s.note + ', ' + s.kcal + ' kcal).'; }
+function showBanner(kind) {
+  if (alarmOn) return;
+  if (bannerKind) { if (bannerKind !== kind && !queue.includes(kind)) queue.push(kind); return; }
+  bannerKind = kind;
+  const now = Date.now(), gaming = !!state.profile.game;
+  let title, text, actions;
+  if (kind === 'water') {
+    const w = nowWx(now);
+    title = gaming ? 'Hydration check' : 'Time for water';
+    text = (gaming ? 'Pause the game and drink a cup. ' : '') + (live(w) && w.temp >= 85 ? 'It’s ' + w.temp + '° outside. ' : '') + 'You’re at ' + state.day.water + ' of ' + waterGoal() + ' cups.';
+    actions = '<button class="btn btn-water" type="button" data-b="drink">Drank a cup</button><button class="btn" type="button" data-b="snooze">Snooze 10 min</button>';
+    $('bn-icon').innerHTML = CUP_ICON;
+  } else {
+    title = 'Healthy snack time'; text = snackText();
+    actions = '<button class="btn btn-primary" type="button" data-b="log">Log it</button><button class="btn" type="button" data-b="another">Other idea</button><button class="btn btn-quiet" type="button" data-b="skip">Skip</button>';
+    $('bn-icon').innerHTML = SNACK_ICON;
+  }
+  $('bn-title').textContent = title; $('bn-text').textContent = text; $('bn-actions').innerHTML = actions;
+  $('banner').hidden = false;
+  try { document.dispatchEvent(new CustomEvent('daybreak:notify', { detail: { kind: kind, title: title, text: text } })); } catch (e) {}
+  chime(kind); haptic([180, 90, 180]);
+}
+function closeBanner() { $('banner').hidden = true; bannerKind = null; if (queue.length) setTimeout(() => showBanner(queue.shift()), 450); }
+$('bn-actions').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-b]'); if (!b) return;
+  const a = b.dataset.b, now = Date.now();
+  if (a === 'drink') { closeBanner(); addCup(); }
+  else if (a === 'snooze') { rem.water = now + 10 * 60000; LS.set('rem', rem); renderRemSummary(); closeBanner(); }
+  else if (a === 'log') { const s = SNACKS[snackIdx % SNACKS.length]; snackIdx++; closeBanner(); addFood(s.name, s.kcal, 'Snack'); }
+  else if (a === 'another') { snackIdx++; $('bn-text').textContent = snackText(); haptic(); }
+  else if (a === 'skip') { snackIdx++; closeBanner(); }
+});
+(function swipeBanner() {
+  const el = $('banner'); let y0 = null;
+  el.addEventListener('pointerdown', (e) => { if (e.target.closest('button')) return; y0 = e.clientY; });
+  el.addEventListener('pointermove', (e) => { if (y0 == null) return; el.style.transform = 'translate(-50%,' + Math.min(0, e.clientY - y0) + 'px)'; });
+  const end = (e) => { if (y0 == null) return; const dy = e.clientY - y0; y0 = null; el.style.transform = ''; if (dy < -40) closeBanner(); };
+  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+})();
+function checkReminders(now) {
+  const r = state.profile.reminders, gaming = !!state.profile.game;
+  if (r.waterOn && now >= rem.water) {
+    if (gaming || inActive(now)) showBanner('water');
+    rem.water = gaming ? now + r.waterMins * 60000 : nextActive(now + r.waterMins * 60000);
+    LS.set('rem', rem); renderRemSummary();
+  }
+  if (r.snackOn && now >= rem.snack) {
+    if (inActive(now)) showBanner('snack');
+    rem.snack = nextActive(now + r.snackMins * 60000);
+    LS.set('rem', rem); renderRemSummary();
+  }
+}
+
+/* ================= audio ================= */
+let AC = null, siren = null;
+function audio() {
+  if (!AC) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; try { AC = new C(); } catch (e) { return null; } }
+  if (AC.state === 'suspended') AC.resume().then(updateHint, () => {});
+  return AC;
+}
+document.addEventListener('pointerdown', () => audio(), { passive: true });
+document.addEventListener('keydown', () => audio());
+function chime(kind) {
+  const ac = AC; if (!ac || ac.state !== 'running') return;
+  (kind === 'snack' ? [659.25, 880, 1046.5] : [783.99, 1046.5, 1318.5]).forEach((f, i) => {
+    const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + i * .14;
+    o.type = 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.2, t + .02); g.gain.exponentialRampToValueAtTime(.0001, t + .7);
+    o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + .75);
+  });
+}
+function startSiren() {
+  const ac = audio(); if (!ac || siren) return;
+  const o = ac.createOscillator(), o2 = ac.createOscillator(), lfo = ac.createOscillator(), lg = ac.createGain(), lg2 = ac.createGain(), f = ac.createBiquadFilter(), g = ac.createGain();
+  o.type = 'sawtooth'; o.frequency.value = 780; o2.type = 'square'; o2.frequency.value = 784;
+  lfo.type = 'square'; lfo.frequency.value = 2.2; lg.gain.value = 200; lg2.gain.value = 200;
+  lfo.connect(lg); lg.connect(o.frequency); lfo.connect(lg2); lg2.connect(o2.frequency);
+  f.type = 'lowpass'; f.frequency.value = 2600;
+  g.gain.setValueAtTime(.0001, ac.currentTime); g.gain.exponentialRampToValueAtTime(.3, ac.currentTime + .25);
+  o.connect(f); o2.connect(f); f.connect(g); g.connect(ac.destination);
+  o.start(); o2.start(); lfo.start();
+  siren = { nodes: [o, o2, lfo], g };
+}
+function stopSiren() {
+  if (!siren || !AC) { siren = null; return; }
+  const t = AC.currentTime;
+  try { siren.g.gain.cancelScheduledValues(t); siren.g.gain.setValueAtTime(siren.g.gain.value, t); siren.g.gain.exponentialRampToValueAtTime(.0001, t + .15); siren.nodes.forEach(n => n.stop(t + .2)); } catch (e) {}
+  siren = null;
+}
+let testTimer = 0;
+$('test-alarm').addEventListener('click', () => { if (alarmOn) return; audio(); clearTimeout(testTimer); stopSiren(); startSiren(); haptic([300, 120, 300]); testTimer = setTimeout(() => { if (!alarmOn) stopSiren(); }, 2000); });
+
+/* ================= game mode ================= */
+let alarmOn = false, vibTimer = 0, titleTimer = 0, wakeLock = null, endArmed = 0;
+async function keepAwake(on) {
+  try {
+    if (on) { if (!wakeLock && 'wakeLock' in navigator && !document.hidden) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; renderGameStatus(); }); } }
+    else if (wakeLock) { const w = wakeLock; wakeLock = null; await w.release(); }
+  } catch (e) { wakeLock = null; }
+  renderGameStatus();
+}
+function logSession(start, end, how) { state.day.games.push({ start, end, how }); save(state.dayKey); renderPlay(); }
+function startGame() {
+  audio(); haptic([20, 40, 20]);
+  const now = Date.now();
+  state.profile.game = { startedAt: now, endsAt: now + GAME_MS }; save('profile');
+  if (state.profile.reminders.waterOn) { rem.water = now + state.profile.reminders.waterMins * 60000; LS.set('rem', rem); renderRemSummary(); }
+  keepAwake(true); renderGameState();
+  toast('Game Mode on. Alarm at ' + tLocal(now + GAME_MS) + '.');
+}
+function endEarly() { const g = state.profile.game; if (!g) return; logSession(g.startedAt, Date.now(), 'early'); state.profile.game = null; save('profile'); keepAwake(false); renderGameState(); toast('Session ended early.'); }
+function triggerAlarm() {
+  if (alarmOn) return;
+  alarmOn = true; closeBanner(); queue.length = 0; closeSheet();
+  const g = state.profile.game;
+  $('al-sub').textContent = g ? 'Started ' + tLocal(g.startedAt) + ' · ended ' + tLocal(g.endsAt) : '';
+  $('alarm').hidden = false;
+  try { document.dispatchEvent(new CustomEvent('daybreak:notify', { detail: { kind: 'alarm', title: 'Time’s up', text: 'Your 2 hours of Game Mode are done. Open Daybreak and hold Stop to turn off the alarm.' } })); } catch (e) {}
+  startSiren(); updateHint();
+  const vib = () => haptic([700, 300, 700]); vib(); vibTimer = setInterval(vib, 2000);
+  let flip = false; titleTimer = setInterval(() => { flip = !flip; document.title = flip ? 'TIME’S UP' : 'Daybreak'; }, 900);
+  setTimeout(() => { try { $('hold').focus({ preventScroll: true }); } catch (e) {} }, 60);
+}
+function updateHint() { $('al-hint').hidden = !alarmOn || !!(AC && AC.state === 'running'); }
+function stopAlarm(byUser) {
+  if (!alarmOn) return;
+  alarmOn = false; stopSiren(); clearInterval(vibTimer); clearInterval(titleTimer); document.title = 'Daybreak'; haptic(0);
+  $('alarm').hidden = true; $('hold-ring').style.strokeDashoffset = '452.39';
+  if (byUser) { const g = state.profile.game; if (g) logSession(g.startedAt, g.endsAt, 'alarm'); state.profile.game = null; save('profile'); toast('Alarm off. Good session.'); }
+  keepAwake(false); renderGameState();
+}
+$('alarm').addEventListener('pointerdown', () => { audio(); if (alarmOn && !siren) startSiren(); setTimeout(updateHint, 150); });
+const hold = { start: 0, raf: 0 };
+function holdBegin(e) {
+  if (e) e.preventDefault();
+  audio(); if (hold.start) return;
+  hold.start = performance.now(); haptic(15);
+  const ring = $('hold-ring');
+  const step = () => {
+    if (!hold.start) return;
+    const p = Math.min(1, (performance.now() - hold.start) / HOLD_MS);
+    ring.style.strokeDashoffset = (452.39 * (1 - p)).toFixed(2);
+    if (p >= 1) { hold.start = 0; stopAlarm(true); return; }
+    hold.raf = requestAnimationFrame(step);
+  };
+  hold.raf = requestAnimationFrame(step);
+}
+function holdCancel() { if (!hold.start) return; hold.start = 0; cancelAnimationFrame(hold.raf); $('hold-ring').style.strokeDashoffset = '452.39'; }
+const hb = $('hold');
+hb.addEventListener('pointerdown', holdBegin);
+['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => hb.addEventListener(ev, holdCancel));
+hb.addEventListener('keydown', (e) => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) holdBegin(e); });
+hb.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') holdCancel(); });
+hb.addEventListener('contextmenu', (e) => e.preventDefault());
+
+const GR = { r: 124, c: 2 * Math.PI * 124 };
+function buildGameRing() {
+  let ticks = '';
+  for (let i = 0; i < 24; i++) { const maj = i % 6 === 0; ticks += '<line x1="150" y1="' + (maj ? 2 : 6) + '" x2="150" y2="13" transform="rotate(' + i * 15 + ' 150 150)" stroke="rgba(245,247,252,' + (maj ? .55 : .2) + ')" stroke-width="' + (maj ? 2 : 1.3) + '" stroke-linecap="round"/>'; }
+  $('g-ring').innerHTML = '<svg viewBox="0 0 300 300" aria-hidden="true">' + ticks +
+    '<circle cx="150" cy="150" r="' + GR.r + '" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="18"/>' +
+    '<circle id="gr-prog" cx="150" cy="150" r="' + GR.r + '" fill="none" stroke="url(#g-sunrise)" stroke-width="18" stroke-linecap="round" stroke-dasharray="' + GR.c.toFixed(2) + '" stroke-dashoffset="0" transform="rotate(-90 150 150)" style="transition:stroke-dashoffset 1s linear"/>' +
+    '<g class="tip" id="gr-tip"><circle r="16" fill="#FFB547" filter="url(#f-glow)"/><circle r="7" fill="#FFF7E6"/></g></svg>' +
+    '<div class="g-c"><div class="g-time" id="gr-time">2:00:00</div><div class="g-sub" id="gr-sub">Ready</div></div>';
+}
+function renderGameStatus() {
+  const g = state.profile.game, items = [];
+  if (g) {
+    items.push('<li class="hot">Alarm at ' + esc(tLocal(g.endsAt)) + '</li>');
+    items.push(wakeLock ? '<li class="good">Screen stays awake</li>' : '<li>Keep Daybreak open</li>');
+    const m = state.profile.reminders.waterMins;
+    if (state.profile.reminders.waterOn) items.push('<li>Water every ' + (m >= 60 ? (m / 60) + ' hr' : m + ' min') + '</li>');
+  }
+  setHTML($('g-status'), items.join(''));
+}
+function renderGameState() {
+  const g = state.profile.game;
+  $('timer').classList.toggle('live', !!g);
+  if (g) {
+    $('g-actions').innerHTML = '<button class="btn btn-danger btn-lg" type="button" id="end-early">End session early</button>';
+    $('end-early').addEventListener('click', () => {
+      if (endArmed && Date.now() - endArmed < 4000) { endArmed = 0; endEarly(); haptic(20); return; }
+      endArmed = Date.now(); $('end-early').textContent = 'Tap again to end'; haptic();
+      setTimeout(() => { const b = $('end-early'); if (b) b.textContent = 'End session early'; endArmed = 0; }, 4000);
+    });
+  } else {
+    $('g-actions').innerHTML = '<button class="btn btn-primary btn-lg" type="button" id="start-game"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7.5h10a4.4 4.4 0 0 1 4.3 3.6l.9 4.6a2.3 2.3 0 0 1-4 1.9L16 15.3H8l-2.2 2.3a2.3 2.3 0 0 1-4-1.9l.9-4.6A4.4 4.4 0 0 1 7 7.5z"/><path d="M8 10v3M6.5 11.5h3"/></svg>Start Game Mode</button><p class="g-copy">Starts a 2-hour timer. When it ends, the alarm rings until you turn it off.</p>';
+    $('start-game').addEventListener('click', startGame);
+  }
+  renderGameStatus(); updateGameClock(Date.now());
+}
+function updateGameClock(now) {
+  const g = state.profile.game, prog = $('gr-prog'), tip = $('gr-tip');
+  const f = g ? clamp((g.endsAt - now) / GAME_MS, 0, 1) : 1;
+  prog.style.strokeDashoffset = (GR.c * (1 - f)).toFixed(2);
+  prog.style.opacity = g ? (f > 0 ? 1 : 0) : .3;
+  const a = (-90 + 360 * f) * RAD;
+  tip.setAttribute('transform', 'translate(' + (150 + Math.cos(a) * GR.r).toFixed(1) + ' ' + (150 + Math.sin(a) * GR.r).toFixed(1) + ')');
+  tip.style.opacity = g && f > 0 ? 1 : 0;
+  const tab = $('tab-game');
+  if (g) {
+    const left = Math.max(0, g.endsAt - now);
+    $('gr-time').textContent = fmtClock(left);
+    $('gr-sub').textContent = left > 0 ? 'Alarm at ' + tLocal(g.endsAt) : 'Time’s up';
+    $('tab-game-l').textContent = fmtClock(left);
+    tab.classList.add('live');
+    if (!tab.querySelector('.live-dot')) tab.insertAdjacentHTML('beforeend', '<span class="live-dot" aria-hidden="true"></span>');
+  } else {
+    $('gr-time').textContent = '2:00:00'; $('gr-sub').textContent = 'Ready when you are';
+    $('tab-game-l').textContent = 'Game'; tab.classList.remove('live');
+    const dot = tab.querySelector('.live-dot'); if (dot) dot.remove();
+  }
+}
+function renderPlay() {
+  const keys = last7(), mins = keys.map(k => { const d = dayData(k); return d ? Math.round(d.games.reduce((a, s) => a + (s.end - s.start), 0) / 60000) : 0; });
+  const count = keys.reduce((a, k) => a + ((dayData(k) || { games: [] }).games.length), 0);
+  $('st-today').textContent = fmtLen(mins[6] * 60000); $('st-week').textContent = fmtLen(mins.reduce((a, b) => a + b, 0) * 60000); $('st-count').textContent = count;
+  setHTML($('game-week'), barChart(mins, weekLabels(), 120, '2-hour limit', 'url(#g-sunrise)', 'rgba(255,181,71,.4)', (v) => v >= 60 ? (v / 60).toFixed(1) + 'h' : v + 'm'));
+  const list = state.day.games.slice().sort((a, b) => b.start - a.start);
+  setHTML($('sessions'), list.length ? list.map(s => '<div class="sess"><div>' + esc(tLocal(s.start)) + ' – ' + esc(tLocal(s.end)) + '<span class="tag">' + (s.how === 'early' ? 'Ended early' : 'Alarm') + '</span></div><div class="len">' + fmtLen(s.end - s.start) + '</div></div>').join('') : '<p class="empty">No sessions yet today.</p>');
+}
+
+/* ================= tabs ================= */
+let activeTab = 'weather';
+const TABS = ['weather', 'health', 'game'];
+function showTab(name, quiet) {
+  activeTab = name;
+  TABS.forEach((t, i) => { $('pane-' + t).classList.toggle('is-active', t === name); $('tab-' + t).setAttribute('aria-selected', String(t === name)); if (t === name) $('tab-ind').style.transform = 'translateX(' + (i * 100) + '%)'; });
+  LS.set('tab', name);
+  if (!quiet) { haptic(); if (!isWide()) window.scrollTo({ top: 0, behavior: 'auto' }); }
+  requestDraw();
+}
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+/* ================= clock ================= */
+let lastMinute = -1;
+function tick() {
+  const now = Date.now(), minute = Math.floor(now / 60000);
+  if (minute !== lastMinute) {
+    lastMinute = minute;
+    $('clock').textContent = F_LONG.format(new Date(now)) + '  ·  ' + tC(now);
+    rollDay(); renderWeather(now); renderWater(); renderSteps(); renderToday();
+  }
+  const g = state.profile.game;
+  if (g && now >= g.endsAt && !alarmOn) triggerAlarm();
+  updateGameClock(now);
+  checkReminders(now);
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  if (AC && AC.state === 'suspended') AC.resume().then(updateHint, () => {});
+  if (state.profile.game && !wakeLock) keepAwake(true);
+  lastMinute = -1; tick();
+});
+window.addEventListener('scroll', requestDraw, { passive: true });
+
+/* ================= boot ================= */
+$('wx-src').textContent = 'NWS · ' + tC(WX.issued);
+buildTiles(); buildRings(); buildGameRing(); renderMealSeg();
+initReminders(); fillControls();
+for (const k of last7().slice(0, 6)) { const n = dayName(k), v = LS.get(n); if (v) state.history[n] = normDay(v, k); }
+const hash = (location.hash || '').slice(1);
+let startTab = TABS.includes(hash) ? hash : (state.profile.game ? 'game' : LS.get('tab'));
+if (!TABS.includes(startTab)) startTab = 'weather';
+showTab(startTab, true);
+resizeScene();
+window.addEventListener('resize', resizeScene);
+tick();
+renderHealth(); renderGameState(); renderPlay();
+setInterval(tick, 1000);
+if (!RM) requestAnimationFrame(loop); else setInterval(requestDraw, 60000);
+if (state.profile.game) keepAwake(true);
+connect();
+})();
+</script>
+
+<script>
+(function () {
+  'use strict';
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('./sw.js').catch(function () {}); });
+  }
+  var canNotify = ('Notification' in window) && ('serviceWorker' in navigator);
+  function post(kind, title, body) {
+    if (!canNotify || Notification.permission !== 'granted') return;
+    var urgent = kind === 'alarm';
+    if (!urgent && document.visibilityState === 'visible') return;
+    navigator.serviceWorker.ready.then(function (reg) {
+      return reg.showNotification(title, { body: body, tag: 'daybreak-' + kind, renotify: true, requireInteraction: urgent, icon: './icon-192.png', badge: './icon-192.png', vibrate: urgent ? [700, 300, 700, 300, 700] : [180, 90, 180] });
+    }).catch(function () {});
+  }
+  document.addEventListener('daybreak:notify', function (e) { var d = e.detail || {}; post(d.kind, d.title, d.text); });
+  if (!canNotify) return;
+  var card = document.getElementById('card-rem');
+  var note = card && card.querySelector('p.note');
+  if (!note) return;
+  var row = document.createElement('div');
+  row.className = 'notify-row';
+  row.innerHTML = '<div class="r-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0-6 6v4l-2 3h16l-2-3V9a6 6 0 0 0-6-6z" fill="url(#g-sunrise)"/><path d="M10 19a2 2 0 0 0 4 0" fill="none" stroke="#FFB547" stroke-width="2" stroke-linecap="round"/></svg></div><div><div class="r-t">Phone notifications</div><div class="r-s" id="notify-state"></div></div><button class="btn" type="button" id="notify-btn">Allow</button>';
+  note.parentNode.insertBefore(row, note);
+  function update() {
+    var p = Notification.permission, st = document.getElementById('notify-state'), b = document.getElementById('notify-btn');
+    if (p === 'granted') { st.textContent = 'On. Reminders and the alarm also show as phone notifications.'; b.hidden = true; }
+    else if (p === 'denied') { st.textContent = 'Blocked. Turn them on for Daybreak in your phone settings.'; b.hidden = true; }
+    else { st.textContent = 'Get reminders and the Game Mode alarm as notifications.'; b.hidden = false; }
+  }
+  document.getElementById('notify-btn').addEventListener('click', function () {
+    try { var r = Notification.requestPermission(update); if (r && r.then) r.then(update); } catch (err) { update(); }
+  });
+  update();
+})();
+</script>
+</body>
+</html>
